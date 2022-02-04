@@ -14,7 +14,7 @@ Run snp_array_processing_V1.0.R
 
 Run using python2.7
 
-moka_array_cnv_export_V1.0.py
+moka_array_legacy_data_export.py
 
 # Scripts for lifting over legacy data to GRCh38 
 
