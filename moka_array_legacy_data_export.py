@@ -26,7 +26,7 @@ export_patient_data_SQL = ("SELECT DISTINCT 'chr' + [Chr] AS Chromo, ArrayOligoP
     "[band19] + '(' + CONVERT(varchar(20), start19) + '-' + CONVERT(varchar(20), stop19) + ')' + [Change] AS [DESCtwo], " # Convert integers to make a string
     "Arrays.DateRecieved, [Patients].[PatientID] + [AltForBED] AS PatientIDInheritance, "
     "Phenotype, ArrayOligoPreliminaryResults.Copies, Change.Change, ArrayOligoPreliminaryResults.WholeChromosome, "
-    "Patients.BookinDOB,  [dbo].[gwv-patientlinked].[DoB] " # To calculate patient's age 
+    "Patients.BookinDOB,  [dbo].[gwv-patientlinked].[DoB], ArrayTest.RequestedDate  " # To calculate patient's age 
     "FROM (((((((((((Patients INNER JOIN ResultCode ON Patients.OverallResultCodeID = ResultCode.ResultCodeID) "
     "INNER JOIN ArrayOligoPreliminaryResults ON Patients.InternalPatientID = ArrayOligoPreliminaryResults.InternalPatientID) "
     "INNER JOIN Chromosome ON ArrayOligoPreliminaryResults.ChrID19 = Chromosome.ChrID) " 
@@ -48,12 +48,12 @@ export_patient_data_SQL = ("SELECT DISTINCT 'chr' + [Chr] AS Chromo, ArrayOligoP
     "AND ((ArrayOligoPreliminaryResults.Pathogenic)=1202218781 OR " # Patient result is 'Uncertain clinical significance (class 3)' Or
     "(ArrayOligoPreliminaryResults.Pathogenic)=1202218783 Or (ArrayOligoPreliminaryResults.Pathogenic)=1202218788) " # 'Likely to be pathogenic (class 4)' Or 'Pathogenic / abnormal result (class 5)'
     "AND ((Arrays.DateRecieved) BETWEEN '2016-01-01 00:00:00' AND '2021-12-31 00:00:00') " # For current array plaform
-    "AND ((ArrayTest.StatusID) = 4))") # Only tests which are completed 
-
+    "AND ((ArrayTest.StatusID) = 4)" # Only tests which are completed 
+    "AND ((Patients.BookinDOB)IS NOT NULL OR ([dbo].[gwv-patientlinked].[DoB]) IS NOT NULL))") # Only patients with a DOB in either Moka or GW
 # Run SQL query and store results in a pandas dataframe 
 export_patient_data_df = pd.read_sql(export_patient_data_SQL, cnxn)
 print("Data pulled from moka")
 
 # Save as a tsv file, some characters are not ascii so encoding in utf-8
-export_patient_data_df.to_csv("moka_array_export_220211.tsv",sep = "\t", encoding='utf-8')
+export_patient_data_df.to_csv("moka_array_export_220215.tsv",sep = "\t", encoding='utf-8')
 print("Data saved")
