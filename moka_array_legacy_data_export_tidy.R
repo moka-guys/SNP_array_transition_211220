@@ -1,5 +1,5 @@
-library(tidyverse)
-library(dplyr)
+library(tidyverse) #V1.3.1
+library(dplyr) #V1.0.7
 
 ################################
 # Using the tsv output from moka_array_legacy_data_export.py
