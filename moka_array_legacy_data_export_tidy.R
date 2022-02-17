@@ -20,19 +20,21 @@ dataframe <- read.delim("moka_array_export_220215.tsv", sep = '\t' , header = TR
 
 array_df <- dataframe %>% 
   select(-c(X)) %>%  # Drop Python export unique ID column
+  mutate(squished_phenotype = str_squish(Phenotype)) %>% # str_squish removes large bits of white space 
   group_by(PatientID) %>%
-  mutate(phenotype_string = toString(Phenotype)) %>% # Group phenotypes into one row  per patient
+  mutate(phenotype_string = toString(squished_phenotype)) %>% # Group phenotypes into one row  per patient
   ungroup() %>% # ungroup to be able to remove column
-  select(-c(Phenotype)) %>% # remove phenotype column 
+  select(-c(Phenotype, squished_phenotype)) %>% # remove phenotype column 
   distinct() %>% # Return only one of each unique row 
   # Create a new column for sex, merge all the different sex/gender columns into one, label all the pts with no gender
   mutate(sex = case_when(Gender == "Male" | Sexed == "M" | Sexed == "M\n\n\nM" |  
                            Sexed == "M M" |  Sexed == "m"  |
                            BookinSex == "M" ~ "Male",
                         Gender == "Female" | Sexed == "F" | Sexed == "f" |  Sexed == "F F" |  Sexed == "Female" | BookinSex == "F" ~ "Female",
-         TRUE ~ "blank"), #  highlight unknowns/blanks to remove
+         TRUE ~ "blank")) %>% 
+  filter(sex != "blank") %>%   #  highlight unknowns/blanks to remove
          # Create a new column grouping tissue types.
-         tissue_groups = case_when(Referral == "General referral" | Referral == "Repeat general referral" ~ "General referral", 
+  mutate(tissue_groups = case_when(Referral == "General referral" | Referral == "Repeat general referral" ~ "General referral", 
                                    Referral == "Prenatal" | Referral == "Repeat prenatal" ~ "Prenatal", 
                                    TRUE ~ "Tissues"), #POC/Tissues, repeat POC/Tissues & pseudorush all go in this group
          # Calculate patients age when test was requested in days
@@ -70,28 +72,28 @@ array_df <- dataframe %>%
                              ),  
         # Create the detailed string of patient information to go into UCSC
         details_string = str_c("<br /><br /><strong>", PatientResult, "</strong><br /><br />", # Add line breaks
-                                  DESCtwo, "<br /><br />", "Tissue group: ", tissue_groups ,"<br /><br />", 
+                                  "Change: ", Change, "<br /><br />", "Tissue group: ", tissue_groups ,"<br /><br />", 
                                   "Inheritance: " , PatientIDInheritance,  "<br /><br />", 
                                   "Sex: ", sex , "<br /><br />", "Age: ", age_years_days, "<br /><br />",
                                   "CNV group: "  , cnvtype, "<br /><br />", "Pathogenicity: ", pathogenic_string,
-                                  "<br /><br />" , "Phenotypes: ", phenotype_string,"<br /><br />"),
+                                  "<br /><br />" , "Phenotypes: ", phenotype_string,"<br /><br />")) %>% 
+  distinct() %>% 
         # Create columns for UCSC requirements 
-         start192 = Start19, # Some columns need to be repeated (and used for ID when re joining tables)
+  mutate(start192 = Start19, # Some columns need to be repeated (and used for ID when re joining tables)
          stop192 = Stop19,
          patientid_2 = PatientID,
          strand = ".", # Create strand column for bed file requirement
-         score = 0, # blank score column 
-         ID = row_number()) %>% # create a unique ID column to join this data frame to data after lift over 
-  filter(sex != "blank")  # Remove patients without a sex (64 results over 44 patients are removed at this step)
+         score = 0 # blank score column 
+         )   # Remove patients without a sex (64 results over 44 patients are removed at this step)
 
 
 # Make a new df ready to export for liftover via command line 
 bed_track <- array_df %>% 
-  select(Chromo, Start19, Stop19, PatientID, start192, stop192, ID)  # Select needed columns
-
+  select(Chromo, Start19, Stop19, PatientID, start192, stop192) %>%  # Select needed columns
+  distinct()
 ### Save data for liftover to hg38 ######### ====================================================================
-# Liftover software doesn't like the variable size of the phenotype/detailed string columns so minimal information exported for liftover 
-# To be re merged with patient information after liftover 
+# Liftover software doesn't like the variable size of the phenotype column so minimal information exported for liftover 
+# Then to be re merged with patient information 
 # Write df to file 
 write.table(bed_track, "array_data_to_liftover_20220215.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE)
 
@@ -102,13 +104,12 @@ write.table(bed_track, "array_data_to_liftover_20220215.bed", sep = '\t', row.na
 # liftOver version downloaded from UCSC website 2022-01-27, no version listed 
 # bedPlus=3 File is bed N+ format (i.e. first N fields conform to bed format)
 # Command run 
-# /home/erin/Documents/Software/UCSC_liftover/liftOver array_data_to_liftover_20220215.bed /home/erin/Documents/Software/UCSC_liftover/hg19ToHg38.over.chain 
-# newFile_20220215 unMapped_20220215 bedPlus=3
+# /home/erin/Documents/Software/UCSC_liftover/liftOver array_data_to_liftover_20220215.bed /home/erin/Documents/Software/UCSC_liftover/hg19ToHg38.over.chain newFile unMapped bedPlus=3
 
 ### Load in liftover  data ######### ====================================================================
 
 # Import lifted over data 
-array_liftover_done <- read.delim("newFile_20220215", sep = '\t'  , header = FALSE)
+array_liftover_done <- read.delim("newFile", sep = '\t'  , header = FALSE)
 
 ### Merge lift over data with patient information  ######### ====================================================================
 
@@ -118,12 +119,12 @@ merged_lifted_over <- array_liftover_done %>%
          "hg38_stp" = "V3",
          "PatientID" = "V4",
          "start192" = "V5", # change headers to old hg19 coordinates for ID whilsts joining 
-         "stop192" = "V6", 
-         "ID" = "V7") %>% 
-  inner_join(array_df,  by = c("PatientID", "start192", "stop192", "ID")) %>% # add phenotype / patient details back on, match by start(hg19) & stop(hg19) coordinates, PRU and ID
+         "stop192" = "V6") %>% 
+  #distinct() %>% 
+  inner_join(array_df,  by = c("PatientID", "start192", "stop192")) %>% # add phenotype / patient details back on, match by start(hg19) & stop(hg19) coordinates and PRU 
   mutate(hg38_str_2 = hg38_str,
-         hg38_stp_2 = hg38_stp)  # Create duplicate str and stp for UCSC 
-
+         hg38_stp_2 = hg38_stp)# %>%  # Create duplicate str and stp for UCSC 
+ # distinct() # ensure one unique row 
 
 ### Sub select dfs for exporting  ######### ====================================================================
 
@@ -131,28 +132,30 @@ merged_lifted_over <- array_liftover_done %>%
 ucsc_bedfile_whole_chromo <- merged_lifted_over %>% 
   ungroup() %>% 
   filter(WholeChromosome == 1202218774) %>% # whole chromosome = yes 
-  select(hg38_chr, hg38_str, hg38_stp, PatientID, score, strand, hg38_str_2, hg38_stp_2, itemRgb, patientid_2 ,details_string) # Columns needed for UCSC
-
+  select(hg38_chr, hg38_str, hg38_stp, PatientID, score, strand, hg38_str_2, hg38_stp_2, itemRgb, patientid_2 ,details_string) %>% # Columns needed for UCSC
+  distinct()
 # Prepare two dfs for upload to UCSC for non whole chromosome CNVs
 ucsc_bedfile_cnv_gains_only <- merged_lifted_over %>% 
   ungroup() %>% 
   filter(WholeChromosome == -1128799521 | is.na(WholeChromosome)) %>% # whole chromosome = no OR is blank 
   filter(cnvtype == "Copy number gain" | cnvtype == "Mosaic gain" ) %>% 
-  select(hg38_chr, hg38_str, hg38_stp, PatientID, score, strand, hg38_str_2, hg38_stp_2, itemRgb, patientid_2 ,details_string) # Columns needed for UCSC
+  select(hg38_chr, hg38_str, hg38_stp, PatientID, score, strand, hg38_str_2, hg38_stp_2, itemRgb, patientid_2 ,details_string) %>%  # Columns needed for UCSC
+  distinct()
+
 
 ucsc_bedfile_cnv_losses_only <- merged_lifted_over %>% 
   ungroup() %>% 
   filter(WholeChromosome == -1128799521 | is.na(WholeChromosome)) %>% # whole chromosome = no or is blank 
   filter(cnvtype == "Copy number loss" | cnvtype == "Mosaic loss" ) %>% 
-  select(hg38_chr, hg38_str, hg38_stp, PatientID, score, strand, hg38_str_2, hg38_stp_2, itemRgb, patientid_2 ,details_string) # Columns needed for UCS
-
+  select(hg38_chr, hg38_str, hg38_stp, PatientID, score, strand, hg38_str_2, hg38_stp_2, itemRgb, patientid_2 ,details_string) %>%  # Columns needed for UCS
+  distinct()
 ### Export data to be uploaded to UCSC  ######### ====================================================================
 
-write.table(ucsc_bedfile_whole_chromo, "ucsc_array_cnv_moka_legacy_whole_chromo_20220215.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE )
+write.table(ucsc_bedfile_whole_chromo, "ucsc_array_cnv_moka_legacy_whole_chromo.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE )
 
-write.table(ucsc_bedfile_cnv_gains_only, "ucsc_array_cnv_moka_legacy_cnv_gains_only_20220215.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE )
+write.table(ucsc_bedfile_cnv_gains_only, "ucsc_array_cnv_moka_legacy_cnv_gains_only.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE )
 
-write.table(ucsc_bedfile_cnv_losses_only, "ucsc_array_cnv_moka_legacy_cnv_losses_only_20220215.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE )
+write.table(ucsc_bedfile_cnv_losses_only, "ucsc_array_cnv_moka_legacy_cnv_losses_only.bed", sep = '\t', row.names = FALSE, col.names = FALSE, quote = FALSE )
 
 
 
