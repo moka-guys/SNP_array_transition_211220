@@ -102,7 +102,7 @@ write.table(bed_track, "array_data_to_liftover_20220215.bed", sep = '\t', row.na
 # liftOver version downloaded from UCSC website 2022-01-27, no version listed 
 # bedPlus=3 File is bed N+ format (i.e. first N fields conform to bed format)
 # Command run 
-# /home/erin/Documents/Software/UCSC_liftover/liftOver array_data_to_liftover_20220215.bed /home/erin/Documents/Software/UCSC_liftover/hg19ToHg18.over.chain 
+# /home/erin/Documents/Software/UCSC_liftover/liftOver array_data_to_liftover_20220215.bed /home/erin/Documents/Software/UCSC_liftover/hg19ToHg38.over.chain 
 # newFile_20220215 unMapped_20220215 bedPlus=3
 
 ### Load in liftover  data ######### ====================================================================
