@@ -35,13 +35,15 @@ python(v2.7): moka_array_legacy_data_export.py
 
 R(v4.0.5): moka_array_legacy_data_export_tidy.R
 
-#### 4) Script for finding the genome wide resolution of a flexible window of probes 
+## SNP array resolution  
+
+#### 1) Script for finding the genome wide resolution of a flexible window of probes 
 
 R(v4.0.5):
   - config.R: change probe windows in this script 
   - SNP_array_resolution.R 
 
-#### 5) Script for finding the resolution of a flexible window of probes in developmental delay (taken from decipher) genes alone  
+#### 2) Script for finding the resolution of a flexible window of probes in developmental delay (taken from decipher) genes alone  
 
 R(v4.0.5):
   - config.R: change probe windows in this script 
