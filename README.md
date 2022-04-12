@@ -34,3 +34,23 @@ python(v2.7): moka_array_legacy_data_export.py
 #### 3) Script for tidying legacy data to be uploaded to UCSC & facilitating liftover to hg38
 
 R(v4.0.5): moka_array_legacy_data_export_tidy.R
+
+## SNP array resolution  
+
+#### 1) Script for finding the genome wide resolution of a flexible window of probes 
+
+R(v4.0.5):
+  - config.R: change probe windows in this script 
+  - SNP_array_resolution.R 
+
+#### 2) Script for finding the resolution of a flexible window of probes in developmental delay (taken from decipher) genes alone  
+
+R(v4.0.5):
+  - config.R: change probe windows in this script 
+  - SNP_array_resolution_DD.R 
+
+
+
+
+
+
