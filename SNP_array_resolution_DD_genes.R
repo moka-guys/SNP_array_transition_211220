@@ -6,7 +6,7 @@ source("config.R") # This file contains the probe_window variable which can be c
 
 ####################
 # This script has been built to find the genomic resolution of developmental delay (DD) genes 
-# in he new HT-CMA array bed file 
+# in the new HT-CMA array bed file 
 # Genes list taken from Decipher downloaded as DDG2P (DDG2P_16_3_2022.csv)
 # Containing 2539 genes 
 
@@ -14,7 +14,7 @@ source("config.R") # This file contains the probe_window variable which can be c
 # 1) Import bed file and DD csv 
 # 2) Use BSgenome.Hsapiens.UCSC.hg38 to get genomic coordinates for DD genes  
 # 3) Intersect the DD genes coordinates with the probes bed file
-  # remove the genes which don't met the window for probes specified 
+  # remove the genes which don't meet the window for probes specified 
 # 4) Create a slice of the bed file which matches each genes coordinates 
 # 5) Intersect a X probe window with the gene coordinates
  # Record the resolution of the probes
@@ -96,7 +96,7 @@ names(ensemble_dd_genes_df)[1:3] <-c("chr", "start", "end") # rename cols
 intersect <- bedtoolsr::bt.intersect(snp_array_bed, ensemble_dd_genes_df, wa = TRUE, wb = TRUE) # wa keeps all the cols from snp_bed, wb from DD genes
 
 names(intersect)[1:8] <-c("chr_probe", "start_probe", "end_probe", "name_probe",
-                          "chr", "start", "end", "name_gene") # r
+                          "chr", "start", "end", "name_gene") # rename
 
 intersect_counts <- intersect %>% 
   group_by(name_gene) %>% 
