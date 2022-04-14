@@ -1,6 +1,7 @@
 library(tidyverse) #V1.3.1
 library(dplyr) #V1.0.7
 
+
 ################################
 # Using the tsv output from moka_array_legacy_data_export.py
 # This script has been created to:
@@ -57,19 +58,14 @@ array_df <- dataframe %>%
                              Copies == 1190384937 | Copies == 1190384943 ~ "Mosaic loss", # change = 'x0~1 OR x1~2'
                              Copies == 1190384939 | Copies == 1190384949 ~ "Mosaic gain"), # change = 'x2~3 OR x2~4'
          # Create colours for UCSC depending on CNV type and pathogenic
-         itemRgb = case_when((cnvtype == "Copy number loss" & pathogenic_string == "Pathogenic") ~ "139,0,0", # Dark red
-                             (cnvtype == "Copy number loss" & pathogenic_string == "Likely pathogenic") ~ "255,0,0", # Red
-                             (cnvtype == "Copy number loss" & pathogenic_string == "Uncertain significance") ~ "240,128,128", # Light red
-                             (cnvtype == "Copy number gain" & pathogenic_string == "Pathogenic") ~ "0,0,128", # Dark blue
-                             (cnvtype == "Copy number gain" & pathogenic_string == "Likely pathogenic") ~ "0,191,255", # Blue
-                             (cnvtype == "Copy number gain" & pathogenic_string == "Uncertain significance") ~ "173,216,230", # Light blue
-                             (cnvtype == "Mosaic loss" & pathogenic_string == "Pathogenic") ~ "50,23,77", # Dark purple 
-                             (cnvtype == "Mosaic loss" & pathogenic_string == "Likely pathogenic") ~ "143,0,255", # Purple 
-                             (cnvtype == "Mosaic loss" & pathogenic_string == "Uncertain significance") ~ "230,230,250", # Light purple
-                             (cnvtype == "Mosaic gain" & pathogenic_string == "Pathogenic") ~ "18,53,36", # Dark green  
-                             (cnvtype == "Mosaic gain" & pathogenic_string == "Likely pathogenic") ~ "141,182,0", # Green 
-                             (cnvtype == "Mosaic gain" & pathogenic_string == "Uncertain significance") ~ "208,240,192", # Light green 
-                             ),  
+         itemRgb = case_when((cnvtype == "Copy number loss" & pathogenic_string == "Pathogenic") ~ "139,0,0", # Reds for loss
+                             (cnvtype == "Copy number loss" & pathogenic_string == "Likely pathogenic") ~ "255,0,0", 
+                             (cnvtype == "Copy number loss" & pathogenic_string == "Uncertain significance") ~ "240,128,128", 
+                             (cnvtype == "Copy number gain" & pathogenic_string == "Pathogenic") ~ "0,0,128", # Blue for gain
+                             (cnvtype == "Copy number gain" & pathogenic_string == "Likely pathogenic") ~ "47,63,235", 
+                             (cnvtype == "Copy number gain" & pathogenic_string == "Uncertain significance") ~ "113,174,242", 
+                             cnvtype == "Mosaic loss"  ~ "252,186,3", # Yellow
+                             cnvtype == "Mosaic gain"  ~ "0,185,47"  ), #  Green
         # Create the detailed string of patient information to go into UCSC
         details_string = str_c("<br /><br /><strong>", PatientResult, "</strong><br /><br />", # Add line breaks
                                   "Change: ", Change, "<br /><br />", "Tissue group: ", tissue_groups ,"<br /><br />", 
@@ -77,7 +73,7 @@ array_df <- dataframe %>%
                                   "Sex: ", sex , "<br /><br />", "Age: ", age_years_days, "<br /><br />",
                                   "CNV group: "  , cnvtype, "<br /><br />", "Pathogenicity: ", pathogenic_string,
                                   "<br /><br />" , "Phenotypes: ", phenotype_string,"<br /><br />")) %>% 
-  distinct() %>% # One row per unqiue result
+  distinct() %>% # One row per unique result
   # Create columns for UCSC requirements 
   mutate(start192 = Start19, # Some columns need to be repeated (and used for ID when re joining tables)
          stop192 = Stop19,
