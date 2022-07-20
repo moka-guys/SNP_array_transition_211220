@@ -1,6 +1,5 @@
 # SNP_array_transition_211220
-Scripts facilitating SNP array transition to a new platform including pulling legacy from Moka and liftover of that data to GRCh38. 
-
+ 
 In late 2021 the array service at Viapath started a transition from a CGH4.3 platform on GRCh37 to CytoScan™ HT-CMA on GRCh38. A number of scripts were required to facilitate this transition and they are held in this repo. 
 
 ## Compare coverage of old probes and new probes 
@@ -49,7 +48,12 @@ R(v4.0.5):
   - config.R: change probe windows in this script 
   - SNP_array_resolution_DD.R 
 
+## Tidying DGV Gold Structural Variants 
 
+R(v4.0.5): 
+- dgv_gold_tidy.R 
+
+This script takes data downloaded from http://dgv.tcag.ca/dgv/docs/DGV.GS.hg38.gff3 (release date 2016-05-15) & tidies it before uploading to UCSC
 
 
 
