@@ -25,7 +25,6 @@ def check_for_output_dir(args):
     for folder in [args.output_folder,args.syndrome_free_files]:
         if folder and not os.path.exists(folder):
             os.path.mkdir(folder)
-            #print("made r'%s'" % folder)
     
 
 def create_list_of_spec_numbers(args):
@@ -59,7 +58,6 @@ def find_files(parsed_args,spec_number_list):
             # files end with .rhchp and can be anywhere within a folder tree
             if re.match(r'(%s).*(.rhchp)' % (spec_number), file):
                 found = True
-                #print("found rhchp file already in output folder")
         
         # if multiple files per specimen id only the first will be taken.
         while not found:
@@ -122,7 +120,6 @@ def copy_files_with_no_syndrome_overlaps(parsed_args,multi_sample_viewer_file,sy
                         synd_chr,synd_start,synd_stop,synd_type = syndrome
                         if synd_chr==sample_chr and sample_start <synd_stop and sample_stop>synd_start and synd_type==sample_type:
                             sample_skip=True
-                            #print(sample,call,syndrome)
             if not sample_skip:
                 #create random string to anonymise
                 random_file_name = "".join(random.choices(string.ascii_letters + string.digits, k=8))
