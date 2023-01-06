@@ -7,7 +7,6 @@ import string
 import re
 from collections import defaultdict
 
-#TODO make changes/new script to find files for postnatal
 def get_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_folder','-o',help='output folder to copy files to')
