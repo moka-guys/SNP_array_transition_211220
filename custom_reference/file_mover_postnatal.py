@@ -61,7 +61,7 @@ def find_files(parsed_args,spec_number_list):
                         if not os.path.isfile(os.path.join(parsed_args.output_folder,file)):
                             # copy the file into the provided subfolder
                             shutil.copyfile(os.path.join(root,file),os.path.join(parsed_args.output_folder,file))
-                        count+=1
+                            count+=1
         if count != 1:
             print("Warning - %s CEL files found for spec number %s" %(count, spec_number))
 
