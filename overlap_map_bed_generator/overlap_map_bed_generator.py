@@ -73,7 +73,17 @@ class GenerateBed():
             the self.noncoding_regions_bed BED file
         remove_probes()
             Remove any probes that are within self.num_probes distance of a coding
+            region. Calls remove_probes_within_regions() and remove_probes_by_distance()
+
+        remove_probes_within_regions(probes_within_regions) 
+            Remove all probes within regions of size < 2*self.num_probes, as all probes
+            within these regions are < self.num_probes away from the nearest coding
             region
+        remove_probes_by_distance(filtered_probes_within_regions)
+            Remove probes that are within self.num_probes of a coding region. Use range
+            (self.num_probes-1)-(self.num_probes-1) because index starts from 0. This
+            retains only those probes greater than self.num_probes away from the
+            nearest coding region, i.e. those probes to be masked
         match_probes_to_regions()
             Split all probes into 'per-region' groups for the noncoding regions in
             self.noncoding_regions_df
@@ -264,17 +274,49 @@ class GenerateBed():
         """
         # Split probes into 'per-region' groups by noncoding region
         probes_within_regions = self.match_probes_to_regions()
-
-        min_region_size = 2*self.num_probes
-        # Remove any probes with size 2*self.num_probes (means that no probes are
-        # included that are < self.num_probes away from the nearest coding region)
-        probes_within_regions = probes_within_regions.groupby(["range", "Chr"]).filter(
-            lambda x: len(x) >= min_region_size
+        filtered_probes_within_regions = self.remove_probes_within_regions(
+            probes_within_regions
+        )
+        probes_to_mask_df = self.remove_probes_by_distance(
+            filtered_probes_within_regions
             )
-        # Use range (self.probes-1)-(self.probes-1) because index starts from 0. Meaning
-        # only the slice from the self.probes probe away from the last coding region to
-        # the self.probes probe away from the next coding region are retained
-        probes_to_mask_df = probes_within_regions.groupby(
+        return probes_to_mask_df
+
+    def remove_probes_within_regions(self, probes_within_regions) -> pd.DataFrame:
+        """
+        Remove all probes within regions of size < 2*self.num_probes, as all probes
+        within these regions are < self.num_probes away from the nearest coding region
+            :param probes_within_regions (class):           Pandas dataframe containing
+                                                            each probe mapped to the
+                                                            region within which it falls
+            :return filtered_probes_within_regions (class): Pandas dataframe containing
+                                                            probes by region with
+                                                            regions containing all
+                                                            probes to be masked removed
+        """
+        min_region_size = 2*self.num_probes  # Set minimum region size
+        filtered_probes_within_regions = probes_within_regions.groupby(
+            ["range", "Chr"]
+        ).filter(
+            lambda x: len(x) >= min_region_size
+        )
+        return filtered_probes_within_regions
+
+    def remove_probes_by_distance(self, filtered_probes_within_regions) -> pd.DataFrame:
+        """
+        Remove probes that are within self.num_probes of a coding region.
+        Use range (self.num_probes-1)-(self.num_probes-1) because index starts from 0
+        This retains only those probes greater than self.num_probes away from the
+        nearest coding region, i.e. those probes to be masked
+            :param filtered_probes_within_regions (class):  Pandas dataframe containing
+                                                            probes by region with
+                                                            regions containing all
+                                                            probes to be masked removed
+            :return probes_to_mask_df (class):              Pandas dataframe containing
+                                                            final probes that require
+                                                            masking in the CHAS software
+        """
+        probes_to_mask_df = filtered_probes_within_regions.groupby(
             ["range", "Chr"], group_keys=False).apply(
                 lambda x: x.iloc[(self.num_probes-1):-(self.num_probes-1)]
         ).reset_index()

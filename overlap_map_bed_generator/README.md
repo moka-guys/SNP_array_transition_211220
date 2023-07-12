@@ -20,19 +20,17 @@ Generate the BED file for the overlap map array project which contains the posit
 
 options:
   -h, --help            show this help message and exit
-  -N NUM_PROBES, --num_probes NUM_PROBES
-                        Number of probes away from the nearest coding region that we do not want
-                        to be masked. E.g. if a value of 51 is input, the BED output will contain
-                        all probes fom the 52nd probe and higher away from the nearest coding
-                        region
-  -O OUTDIR, --outdir OUTDIR
-                        Directory to output created files to
-  -G GENES_AED, --genes_aed GENES_AED
-                        Genes.aed file containing a curated list of genes and their coordinates
-                        which specifies whether the genes are coding or non-coding. This is used
-                        to identify which probes require masking
-  -P PROBES_BED, --probes_bed PROBES_BED
-                        BED file containing all probe names and coordinates
+
+  -N NUM_PROBES, --num_probes NUM_PROBES  Number of probes away from the nearest coding
+                                          region that we do not want to be masked. E.g. if a value of 50 is input, the BED output will contain all probes fom the 51st probe and higher away from the nearest coding region
+
+  -O OUTDIR, --outdir OUTDIR              Directory to output created files to
+
+  -G GENES_AED, --genes_aed GENES_AED     Genes.aed file containing a curated list o
+                                          genes and their coordinates which specifies whether the genes are coding or non-coding. This is used to identify which probes require masking
+
+  -P PROBES_BED, --probes_bed PROBES_BED  BED file containing all probe names and
+                                          coordinates
 ```
 
 
@@ -56,8 +54,8 @@ Dependencies can be installed as follows:
 pip3 install -r requirements.txt
 ```
 
-The tool can be run as follows (with example of NUM_PROBES = 51):
+The tool can be run as follows (with example of NUM_PROBES = 50):
 
 ```bash
- python3 -m overlap_map_bed_generator -N 51 -O $PATH_TO_OUTDIR -G $PATH_TO_GENES_AED -P $PATH_TO_PROBES_BED
+ python3 -m overlap_map_bed_generator -N 50 -O $PATH_TO_OUTDIR -G $PATH_TO_GENES_AED -P $PATH_TO_PROBES_BED
 ```

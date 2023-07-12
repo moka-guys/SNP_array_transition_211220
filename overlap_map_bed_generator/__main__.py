@@ -51,8 +51,8 @@ def arg_parse() -> dict:
         type=int,
         help=(
             "Number of probes away from the nearest coding region that we do not want "
-            "to be masked. E.g. if a value of 51 is input, the BED output will contain "
-            "all probes fom the 52nd probe and higher away from the nearest coding "
+            "to be masked. E.g. if a value of 50 is input, the BED output will contain "
+            "all probes fom the 51st probe and higher away from the nearest coding "
             "region"
             ),
         required=True,
