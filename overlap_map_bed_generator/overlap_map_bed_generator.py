@@ -46,11 +46,12 @@ class GenerateBed():
                                             within the noncoding regions
         probes_to_mask_bed (str):           Path to BED file containing final probes
                                             that require masking in the CHAS software
-        noncoding_regions_df (class):       Pandas dataframe containing the non-coding
+        noncoding_regions_df
+        (pd.DataFrame):                     Pandas dataframe containing the non-coding
                                             regions outside protein-coding genes
-        noncoding_probes_df (class):        Pandas dataframe containing only probes
+        noncoding_probes_df (pd.DataFrame): Pandas dataframe containing only probes
                                             within the noncoding regions
-        probes_to_mask_df (class):          Pandas dataframe containing final probes
+        probes_to_mask_df (pd.DataFrame):   Pandas dataframe containing final probes
                                             that require masking in the CHAS software
 
     Methods
@@ -114,7 +115,7 @@ class GenerateBed():
         self.noncoding_regions_df = self.get_noncoding_regions_bed()
         self.noncoding_probes_df = self.get_noncoding_probes()
         self.probes_to_mask_df = self.remove_probes()
-        self.cleanup_intermediate_files()
+        # self.cleanup_intermediate_files()
         self.write_to_final_csv()
 
     def get_genome_file(self) -> None:
@@ -155,7 +156,7 @@ class GenerateBed():
         regions_df = pd.read_csv(
             self.genes_aed,
             sep="\t",
-            skiprows=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],  # Don't read in lines 1-11
+            skiprows=11,  # Don't read in lines 1-11
             names=headers,
             index_col="name",
         ).drop(  # Drop superfluous columns
@@ -183,10 +184,11 @@ class GenerateBed():
         """
         Filter genes_aed dataframe so that it contains only coding regions, and drop
         category and strand columns
-            :param regions_df (class):          Pandas dataframe containing all regions
-                                                from the genes_aed file
-            :return coding_regions_df (class):  Pandas dataframe containing only coding
-                                                regions from the genes_aed file
+            :param regions_df (pd.DataFrame):           Pandas dataframe containing all
+                                                        regions from the genes_aed file
+            :return coding_regions_df (pd.DataFrame):   Pandas dataframe containing only
+                                                        coding regions from the
+                                                        genes_aed file
         """
         coding_regions_df = regions_df[  # Keep only refseq/coding regions
             regions_df["category"].str.contains("refseq/coding")
@@ -199,8 +201,8 @@ class GenerateBed():
     def condense_regions(self, coding_regions_df: pd.DataFrame) -> None:
         """
         Condense regions that overlap into single per-gene regions and write to BED file
-            :param coding_regions_df (class):   Pandas dataframe containing only coding
-                                                regions
+            :param coding_regions_df (pd.DataFrame):    Pandas dataframe containing only
+                                                        coding regions
         """
         # Group by gene name and Chr, and aggregate into a single per-gene region, as we
         # want to find only regions at least x probes away from the nearest coding gene
@@ -212,6 +214,11 @@ class GenerateBed():
 
         # Write to BED file and sort
         genes_start_stop.to_csv(self.coding_regions_bed, sep="\t", header=False)
+        # `-k1,1V`: Sort chromosome column  alphabetically, recognising 10 comes after 2
+        # `-k2,2n`: Sort start field numerically - loci which start first in a
+        #           chromosome come first
+        # `-k3,3n`: Sort stop field numerically, loci which end first come first when
+        #           they have the same start position
         subprocess.run(
             f"sort -k1,1V -k2,2n -k3,3n {self.coding_regions_bed} > "
             f"{self.coding_regions_bed_sorted}",
@@ -224,9 +231,9 @@ class GenerateBed():
         Run bedtools complement to find the regions in the genome file that are not
         represented in the coding regions BED file (i.e. the non coding regions) outside
         protein coding genes
-            :return noncoding_regions_df (class):   Pandas dataframe containing the
-                                                    non-coding regions outside protein-
-                                                    coding genes
+            :return noncoding_regions_df (pd.DataFrame):    Pandas dataframe containing
+                                                            the non-coding regions
+                                                            outside protein-coding genes
         """
         intersect_command = (
             f"bedtools complement -i {self.coding_regions_bed_sorted} -g "
@@ -243,8 +250,9 @@ class GenerateBed():
         """
         Generate dataframe that contains all probes within the noncoding regions in the
         self.noncoding_regions_bed BED file
-            :return noncoding_probes_df (class):    Pandas dataframe containing only
-                                                    probes within the noncoding regions
+            :return noncoding_probes_df (pd.DataFrame):     Pandas dataframe containing
+                                                            only probes within the
+                                                            noncoding regions
         """
         intersect_cmd = (
             f"bedtools intersect -a {self.probes_bed} -b {self.noncoding_regions_bed} "
@@ -268,9 +276,9 @@ class GenerateBed():
         self.num_probes number of probes with the lowest and self.num_probes number of
         probes with the highest position, and write the remaining probes (probes to be
         masked) to BED file
-            :return probes_to_mask_df (class):  Pandas dataframe containing final probes
-                                                that require masking in the CHAS
-                                                software
+            :return probes_to_mask_df (pd.DataFrame):   Pandas dataframe containing
+                                                        final probes that require
+                                                        masking in the CHAS software
         """
         # Split probes into 'per-region' groups by noncoding region
         probes_within_regions = self.match_probes_to_regions()
@@ -286,10 +294,11 @@ class GenerateBed():
         """
         Remove all probes within regions of size < 2*self.num_probes, as all probes
         within these regions are < self.num_probes away from the nearest coding region
-            :param probes_within_regions (class):           Pandas dataframe containing
+            :param probes_within_regions (pd.DataFrame):    Pandas dataframe containing
                                                             each probe mapped to the
                                                             region within which it falls
-            :return filtered_probes_within_regions (class): Pandas dataframe containing
+            :return filtered_probes_within_regions
+            (pd.DataFrame):                                 Pandas dataframe containing
                                                             probes by region with
                                                             regions containing all
                                                             probes to be masked removed
@@ -308,11 +317,12 @@ class GenerateBed():
         Use range (self.num_probes-1)-(self.num_probes-1) because index starts from 0
         This retains only those probes greater than self.num_probes away from the
         nearest coding region, i.e. those probes to be masked
-            :param filtered_probes_within_regions (class):  Pandas dataframe containing
+            :param filtered_probes_within_regions
+            (pd.DataFrame):                                 Pandas dataframe containing
                                                             probes by region with
                                                             regions containing all
                                                             probes to be masked removed
-            :return probes_to_mask_df (class):              Pandas dataframe containing
+            :return probes_to_mask_df (pd.DataFrame):       Pandas dataframe containing
                                                             final probes that require
                                                             masking in the CHAS software
         """
@@ -331,14 +341,14 @@ class GenerateBed():
         """
         Split all probes into 'per-region' groups for the noncoding regions in
         self.noncoding_regions_df
-            :return probes_within_regions (class):  Pandas dataframe containing each
-                                                    probe mapped to the region within
-                                                    which it falls
+            :return probes_within_regions (pd.DataFrame):   Pandas dataframe containing
+                                                            each probe mapped to the
+                                                            region within which it falls
         """
         noncoding_probes_df = self.noncoding_probes_df
         noncoding_regions_df = self.noncoding_regions_df
         # Join the noncoding probes to the noncoding regions which the probe falls
-        # within
+        # within. Use of an SQL query is much faster / easier than using pandas
         probes_within_regions = (
             duckdb.query(
                 "SELECT * FROM noncoding_probes_df FULL OUTER JOIN noncoding_regions_df"
