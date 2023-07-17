@@ -115,7 +115,7 @@ class GenerateBed():
         self.noncoding_regions_df = self.get_noncoding_regions_bed()
         self.noncoding_probes_df = self.get_noncoding_probes()
         self.probes_to_mask_df = self.remove_probes()
-        # self.cleanup_intermediate_files()
+        self.cleanup_intermediate_files()
         self.write_to_final_csv()
 
     def get_genome_file(self) -> None:
