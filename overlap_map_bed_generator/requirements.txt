@@ -1,4 +1,5 @@
 duckdb==0.8.1
+natsort==8.4.0
 numpy==1.25.1
 pandas==2.0.3
 python-dateutil==2.8.2

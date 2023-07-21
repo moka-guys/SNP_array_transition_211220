@@ -6,6 +6,10 @@ import argparse
 import overlap_map_bed_generator.overlap_map_bed_generator as om
 
 
+def msg(name=None):
+    return '''python3 -m overlap_map_bed_generator [-h] -N NUM_PROBES -O OUTDIR -G GENES_AED -P PROBES_BED'''
+
+
 def is_valid_dir(parser: argparse.ArgumentParser, arg: str) -> str:
     """
     Check directory path is valid
@@ -43,7 +47,8 @@ def arg_parse() -> dict:
         description=(
             "Generate the BED file for the overlap map array project which contains "
             "the positions of all probes to be masked within the CHAS array sofware"
-            )
+            ),
+        usage=msg()
     )
     parser.add_argument(
         "-N",
