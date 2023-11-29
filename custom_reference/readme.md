@@ -21,10 +21,12 @@ Note - the specimen numbers in the two input files must be in form 22-12345 (wit
 
 If there are 0 or > 1 CEL file this is reported to stdout so the user can select the relevant file (or exclude any with duplicates).
 
+NOTE when running the script it will print warnings when >1 CEL file is found for a spec number. Provide this to the array team so they can exclude/remove duplicate files.
+
 ### example run command
 To run this:
 
-s:\Genetics_Data2\Array\Software\python-3.10.0-embed-amd64\python.exe "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\file_mover_postnatal.py" -o "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\test" -e "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\Custom reference_data filtering\2023 data\DMD list for custom reference exported231023_TEST.csv" -s "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\Custom reference_data filtering\2023 data\All arrays reported_1 Jan to 30 Sep 2023_normal postnatals ONLY_list_TEST.csv"
+`s:\Genetics_Data2\Array\Software\python-3.10.0-embed-amd64\python.exe "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\file_mover_postnatal.py" -o "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\test" -e "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\Custom reference_data filtering\2023 data\DMD list for custom reference exported231023_TEST.csv" -s "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\Custom reference_data filtering\2023 data\All arrays reported_1 Jan to 30 Sep 2023_normal postnatals ONLY_list_TEST.csv"`
 
 
 ## file\_mover\_prenatal.py
