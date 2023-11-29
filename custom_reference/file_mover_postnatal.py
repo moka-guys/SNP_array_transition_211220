@@ -33,8 +33,7 @@ def create_list_of_spec_numbers(args):
     Reads the spec number file provided as an argument
     From the header determine which column contains spec numbers (titled "Specimen ID") and which contains the sex (Result Type)
     If sex column can't be determined return string "None" in that field
-    Returns a list of tuples (specimen numbers, sex)
-    
+    Returns a list of tuples (specimen number, sex)
     """
     spec_number_list=[]
     sex_col=False
@@ -60,9 +59,10 @@ def create_list_of_spec_numbers(args):
 
 def filter_list_of_spec_numbers(args,spec_number_list):
     """
-    Takes the list of specimen numbers read from the spec_numbers input (spec_number_list).
+    Takes the list of specimen numbers read from the spec_numbers input (spec_number_list). This is a list of tuples (specimen number, sex)
     If a file of specimen IDs to exclude was given then remove any specimens that appear in this list from spec_number_list
     If exclude_spec_numbers was not given return spec_number_list without any filtering
+    :param list spec_number_list: a list of tuples (specimen number, sex)
     """
     if not args.exclude_spec_numbers:
         #summarise number of specimens
@@ -100,6 +100,7 @@ def find_files(parsed_args,spec_number_list):
     Searches (recursively) through two hardcoded folders for a CEL file for each speciment number in the list.
     If found it will copy the file to the given output folder
     If there are 0 or more than 1 CEL file found it will report the count for that spec number
+    :param list spec_number_list: a list of tuples (specimen number, sex)
     """
     for spec_number in spec_number_list:
         spec_no, sex = spec_number
