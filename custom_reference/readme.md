@@ -3,16 +3,28 @@ This folder contains two scripts to create custom reference files, for the ChAS 
 Custom reference files (which are a bit like a panel of normals) are used to normalise the data and remove noise. Using a custom reference made from our own data can help improve the calling.
 
 ## file\_mover\_postnatal.py
-This script takes a spreadsheet where one file contains a list of specimen numbers and copies CEL files from two hardcoded folders into the specified output folder.
-need to provide 2 arguments:
+This script takes a spreadsheet where one file contains a list of specimen numbers and copies CEL files from some hardcoded folders into the specified output folder.
+Script requires the following arguments:
 
---output_folder','-o', output folder to copy files to
---spec_numbers','-s', csv file where one column contains spec numbers
+* --output_folder ,'-o', output folder to copy files to
+* --spec_numbers ,'-s', csv file where one column contains spec numbers
+* --exclude_spec_numbers ,'-e', csv file where one column contains spec numbers to exclude (optional)
 
-This will loop through the csv file (comma seperated) containing specimen numbers. This should have a header row, with one column named "Specimen ID" (case sensitive) and will extract all spec numbers from within the rest of the file,
-It will then look recursively through two hardcoded folders for CEL files containing the specimen number and copy these to the directory given to --output_folder
+The csv file given as an argument to --spec_numbers should contain specimen numbers for all the files that need to be moved. This file should have a header row, with one column named "Specimen ID" (case sensitive) and the screipt will extract all spec numbers from that column.
+Additionally, if there is also a column named "Result Type" then the script will attempt to decode the sex from this to seperate CEL files into male and female subfolders within the output location. If this column is empty, or the sex can't be determined from the content of this column the file will be saved into an "undetermined" subfolder.
+
+If a csv containing spec numbers to exclude was given as an input (--exclude_spec_numbers) then this file will also be parsed, looking for a column named "Specimen ID" (case sensitive) and extract this list. This list would be used to remove any matching specimen numbers from the --spec_numbers input
+
+The script will then look recursively through hardcoded folders for CEL files containing the specimen number and copy these to sex specific folders in the directory given to --output_folder.
+
+Note - the specimen numbers in the two input files must be in form 22-12345 (with "-" rather than "/")
 
 If there are 0 or > 1 CEL file this is reported to stdout so the user can select the relevant file (or exclude any with duplicates).
+
+### example run command
+To run this:
+
+s:\Genetics_Data2\Array\Software\python-3.10.0-embed-amd64\python.exe "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\file_mover_postnatal.py" -o "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\test" -e "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\Custom reference_data filtering\2023 data\DMD list for custom reference exported231023_TEST.csv" -s "s:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\Custom reference_data filtering\2023 data\All arrays reported_1 Jan to 30 Sep 2023_normal postnatals ONLY_list_TEST.csv"
 
 
 ## file\_mover\_prenatal.py
