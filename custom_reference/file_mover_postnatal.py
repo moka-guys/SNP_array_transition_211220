@@ -5,6 +5,7 @@ import shutil
 import re
 import datetime
 import pandas as pd
+from pathlib import Path
 
 
 def arg_parse():
@@ -41,6 +42,11 @@ def arg_parse():
         required=False,
         default=None,
     )
+    # TODO add origin folders argument with list and file validation for each item in list
+    #     self.cel_origin_folders = [
+    #     r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\Archive\CEL and ARR files do not delete",
+    #     r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud",
+    # ]
     return vars(parser.parse_args())
 
 
@@ -67,12 +73,11 @@ class CELMover:
         spec_number_file (str):                     Path to CSV file where one column contains spec numbers
         exclude_spec_numbers_file (str):            Path to CSV file where one column contains spec numbers to exclude
         spec_number_list
-        (list(specimen number (int), sex (str))):   List of tuples (specimen number, sex)
+        (list(specimen_number (str), sex (str))):   List of tuples (specimen number, sex)
         cel_origin_folders (list):                  List of directories that contain CEL files to be searched for
                                                     copying
-        filtered_spec_number_list
-        (list(specimen number (int), sex (str))):   List of tuples wiht those marked for exclusion
-                                                    removed (specimen number, sex)
+        filtered_spec_number_dict (dict):           Dictionary of specimen numbers with sex and subdirectories to save
+                                                    the files in
         files_to_copy (dict):                       Dictionary of files to copy into the custom reference
 
     Methods
@@ -99,7 +104,11 @@ class CELMover:
     """
 
     def __init__(
-        self, output_dir: str, spec_number_file: str, exclude_spec_numbers_file: str
+        self,
+        output_dir: str,
+        spec_number_file: str,
+        exclude_spec_numbers_file: str,
+        cel_origin_folders: list,
     ):
         """
         Constructor for CELMover class
@@ -107,6 +116,8 @@ class CELMover:
             :param spec_number_file (str):              Path to CSV file where one column contains spec numbers
             :param exclude_spec_numbers_file (str):     Path to CSV file where one column contains
                                                         spec numbers to exclude
+            :param cel_origin_folders (list):           List of directories that contain CEL files to be
+                                                        searched for copying
         """
         self.output_dir = output_dir
         self.male_subdir = os.path.join(self.output_dir, "male")
@@ -116,13 +127,10 @@ class CELMover:
         self.exclude_spec_numbers_file = exclude_spec_numbers_file
         self.create_output_subdirs()
         self.spec_number_list = self.create_list_of_spec_numbers()
-        self.cel_origin_folders = [
-            r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\Archive\CEL and ARR files do not delete",
-            r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud",
-            r"\\GRPVCHASDB01\Archive\CEL and ARR files do not delete",
-        ]
+        self.cel_origin_folders = cel_origin_folders
+
         if self.exclude_spec_numbers_file:
-            self.filtered_spec_number_list = self.filter_list_of_spec_numbers()
+            self.filtered_spec_number_dict = self.filter_list_of_spec_numbers()
         else:
             print(
                 "Spec number filtering not specified (no file "
@@ -149,7 +157,7 @@ class CELMover:
         Reads the spec number file. From the header, determines which column contains the spec
         numbers ("Specimen ID") and which contains the sex ("Result Type"). If the sex column cannot
         be determined, return "None" in that field
-            :return spec_number_list (list(specimen number (int), sex (str))):  List of tuples (specimen number, sex)
+            :return spec_number_list (list(specimen_number (str), sex (str))):  List of tuples (specimen number, sex)
         """
         spec_number_list = []
         sex_col = False
@@ -167,13 +175,13 @@ class CELMover:
         ]:  # Extract the spec number from rest of the lines in file
             if sex_col:
                 spec_number_list.append(
-                    int((line.split(",")[spec_column], line.split(",")[sex_col]))
+                    (line.split(",")[spec_column], line.split(",")[sex_col])
                 )
             else:
                 spec_number_list.append((line.split(",")[spec_column], "None"))
 
         print(
-            "%s in spec number list" % len(spec_number_list)
+            "%s spec numbers in spec number list" % len(spec_number_list)
         )  # Summarise number of specimens
         return spec_number_list
 
@@ -183,10 +191,10 @@ class CELMover:
         This is a list of tuples (specimen number, sex). If a file of specimen IDs to exclude was
         given then remove any specimens that appear in this list from spec_number_list. If
         exclude_spec_numbers_file was not given return spec_number_list without any filtering
-            :return filtered_spec_number_list
+            :return filtered_spec_number_dict
             (list(specimen number (int), sex (str))):   List of spec numbers with those marked for exclusion removed
         """
-        to_exclude_list, filtered_spec_number_list, excluded = [], [], []
+        to_exclude_list, filtered_spec_number_dict, excluded = [], {}, []
 
         with open(self.exclude_spec_numbers_file, "r") as input_file:
             file_contents = input_file.readlines()
@@ -202,17 +210,28 @@ class CELMover:
 
         for specimen in self.spec_number_list:
             spec_no, sex = specimen
+            if "normal female" in sex:
+                sex_subdir = self.female_subdir
+            elif "normal male" in sex:
+                sex_subdir = self.male_subdir
+            else:
+                sex_subdir = "undetermined"
             if spec_no not in to_exclude_list:
-                filtered_spec_number_list.append(specimen)
+                filtered_spec_number_dict[spec_no] = {
+                    "sex": sex,
+                    "sex_subdir": sex_subdir,
+                }
             else:
                 excluded.append(specimen)
-        assert len(excluded) + len(filtered_spec_number_list) == len(
+        assert len(excluded) + len(filtered_spec_number_dict.keys()) == len(
             self.spec_number_list
         )
-
         # Summarise number of specimens
-        print("%s in spec number list post filtering" % len(filtered_spec_number_list))
-        return filtered_spec_number_list
+        print(
+            "%s spec numbers in spec number list post filtering"
+            % len(filtered_spec_number_dict)
+        )
+        return filtered_spec_number_dict
 
     def find_files(self) -> dict:
         """
@@ -220,34 +239,36 @@ class CELMover:
         each specimen number in the list. If found it will copy the file to the given output folder
             :return files_to_copy (dict):   Dictionary of files to copy into the custom reference
         """
-        for spec_number in self.spec_number_list:
-            files_to_copy = {}
-            spec_no, sex = spec_number
-            sex_dir = False
-            if "normal female" in sex:
-                sex_subdir = self.female_subdir
-            elif "normal male" in sex:
-                sex_subdir = self.male_subdir
-            else:
-                sex_subdir = "undetermined"
-            count = 0
+        self.filtered_spec_number_dict
+        files_to_copy = {}
 
-            for folder in self.cel_origin_folders:
-                if os.path.isdir(folder):
-                    for root, dirs, files in os.walk(r"%s" % folder):
-                        for file in files:
-                            files_to_copy[spec_no]
-                            # File ends with .CEL to exclude some other file types
-                            if re.match(r"(%s).*(.CEL$)" % (spec_no), file):
-                                files_to_copy[spec_no][file] = (
-                                    {  # Preliminary list of file names to copy for that spec no
-                                        "src": os.path.join(root, file),
-                                        "dest": os.path.join(sex_subdir, file),
-                                    }
-                                )
-                                count += 1
-                else:
-                    print("%s is not a folder" % folder)
+        cel_files = []
+        for folder in self.cel_origin_folders:
+            cel_files.extend(
+                list(Path(folder).rglob("*.CEL$"))
+            )  # Extract paths of all CEL files in each folder
+
+        for spec_no in self.filtered_spec_number_dict.keys():
+            print("Spec number %s" % spec_no)
+            files_to_copy[spec_no] = {}
+            for cel_file in cel_files:
+                if re.match(r"(%s).*(.CEL$)" % (spec_no), cel_file):
+                    files_to_copy[spec_no][cel_file] = (
+                        {  # Preliminary list of file names to copy for that spec no
+                            "src": cel_file,
+                            "dest": os.path.join(
+                                self.filtered_spec_number_dict[spec_no]["sex_subdir"],
+                                cel_file,
+                            ),
+                        }
+                    )
+                    cel_files.remove(
+                        cel_file
+                    )  # Remove from list to reduce the search burden
+                    print(
+                        "Spec no %s. Added file %s to files_to_copy" % (spec_no, file)
+                    )
+        print(files_to_copy)
         return files_to_copy
 
     def remove_spec_nos(self) -> None:
