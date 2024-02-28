@@ -17,14 +17,13 @@ Additionally, if there is also a column named "Result Type" then the script will
 
 If a CSV containing spec numbers to exclude was given as an input (--exclude_spec_numbers) then this file will also be parsed, looking for a column named "Specimen ID" (case sensitive) and extract this list. This list would be used to remove any matching specimen numbers from the --spec_numbers input.
 
-The script will then look recursively through hardcoded folders for CEL files containing the specimen number and copy these to sex specific folders in the directory given to --output_folder. 
+The script will then look recursively through hardcoded folders for CEL files containing the specimen number. It will copy those to sex specific folders in the directory given to --output_folder. The script takes into account any duplicate files (i.e. if a file exists in multiple folder locations, it will only copy a single copy of each file). Additionally, if any specimen numbers are seen in multiple CEL files, all CEL files for those specimen numbers will be excluded from copying.
 
 Note - the specimen numbers in the two input files must be in form 22-12345 (with "-" rather than "/")
 
-If any specimen numbers are seen in multiple CEL files, all CEL files for those specimen numbers will be excluded from copying.
-
-
 ### Usage
+
+The script should be run on the arrays VM to ensure that all folder locations are accessible to the script.
 
 ```bash
 usage: file_mover_postnatal.py [-h] --output_dir OUTPUT_DIR --spec_number_file SPEC_NUMBER_FILE [--exclude_spec_numbers_file EXCLUDE_SPEC_NUMBERS_FILE]
@@ -50,6 +49,12 @@ This script is a bit more complex as prenatal samples are only analysed in certa
 
 1) take a list of specimen numbers, find the rhchp files and copy them into a subfolder. These can be used to create a msv to be used in step 2:
 2) for the list of specimens, if they do not have a call within the a known syndrome region copy them into a subfolder
+
+
+### Usage
+
+The script should be run on the arrays VM to ensure that all folder locations are accessible to the script.
+
 
 ### step 1 - Collect rhchp files:
 need to provide 3 arguments:
