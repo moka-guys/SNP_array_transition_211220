@@ -6,6 +6,7 @@ import re
 import datetime
 import pandas as pd
 from pathlib import Path
+from logger import Logger
 
 
 def arg_parse():
@@ -93,6 +94,8 @@ class CELMover:
             Generate a dictionary of CEL files to be copied into the custom reference by identifying CEL files that
             match each specimen number in self.filtered_spec_number_dict, identifying which of those should be copied
             and adding those to the self.files_to_copy dict using self.add_to_files_to_copy_dict()
+        add_to_files_to_copy_dict(spec_no, run_no, cel_file_str)
+            Add files to self.files_to_copy dictionary
         remove_spec_nos()
             Where there are multiple files for a spec number, remove this spec number from the dictionary. Keeps files
             that are identical but found in multiple folder locations, but keeps only a single version of the file
@@ -129,9 +132,12 @@ class CELMover:
         self.cel_origin_folders = cel_origin_folders
 
         if self.exclude_spec_numbers_file:
+            logger.info(
+                "A CSV file containing spec numbers for inclusion has been provided"
+            )
             self.filtered_spec_number_dict = self.filter_spec_number_dict()
         else:
-            print(
+            logger.warning(
                 "Spec number filtering not specified (no file "
                 "containing spec numbers to exclude was provided)"
             )
@@ -140,7 +146,7 @@ class CELMover:
         self.identify_files_to_copy()
         self.remove_spec_nos()
         self.copy_files()
-        print("Script complete")
+        logger.info("Script complete")
 
     def create_output_subdirs(self) -> None:
         """
@@ -192,7 +198,7 @@ class CELMover:
                 sex_subdir = "undetermined"
 
             spec_number_dict[spec_no]["sex_subdir"] = sex_subdir
-        print(
+        logger.info(
             "%s spec numbers in spec number dictionary" % len(spec_number_dict.keys())
         )  # Summarise number of specimens
         return spec_number_dict
@@ -226,12 +232,12 @@ class CELMover:
                 del filtered_spec_number_dict[spec_no]
                 excluded.append(spec_no)
 
-        print(f"{len(excluded)} specimen numbers excluded")
+        logger.info(f"{len(excluded)} specimen numbers excluded")
         assert len(excluded) + len(filtered_spec_number_dict.keys()) == len(
             self.spec_number_dict
         )
         # Summarise number of specimens
-        print(
+        logger.info(
             "%s spec numbers in spec number dictionary post filtering"
             % len(filtered_spec_number_dict)
         )
@@ -248,13 +254,15 @@ class CELMover:
         cel_files = []
         for folder in self.cel_origin_folders:
             if os.path.isdir(folder):
-                print(f"The input directory exists: {folder}")
+                logger.info(f"The input directory exists: {folder}")
                 cel_files.extend(
                     list(Path(folder).rglob("*.CEL"))
                 )  # Extract paths of all CEL files in each folder
             else:
-                print(f"The input directory does not exist, skipping: {folder}")
-        print("%s CEL files identified in input folders" % len(cel_files))
+                logger.warning(
+                    f"The input directory does not exist, skipping: {folder}"
+                )
+        logger.info("%s CEL files identified in input folders" % len(cel_files))
         return cel_files
 
     def identify_files_to_copy(self) -> None:
@@ -264,26 +272,29 @@ class CELMover:
         and adding those to the self.files_to_copy dict using self.add_to_files_to_copy_dict()
         """
         file_count_to_copy = 0
-
         for spec_no in self.filtered_spec_number_dict.keys():
             self.files_to_copy[spec_no] = {}
             for cel_file in self.cel_files:
                 cel_file_str = str(cel_file)
-                if spec_no in cel_file_str:
+                if str(spec_no) in cel_file_str:
                     run_no = (cel_file_str.split("\\")[-1]).split("_")[1]
                     # If there is already an entry for this run number
                     if run_no in self.files_to_copy[spec_no].keys():
-                        print(
+                        logger.info(
                             "Spec number with the same run number as an another CEL file has been identified. "
                             f"Spec no: {spec_no}. Run no: {run_no}"
                         )
                         # If the existing spec_no dictionary entry is a CEL file with an identical run name,
                         # skip over the CEL file as it is likely the same file stored in a different location
-                        if (
-                            self.files_to_copy[spec_no].split("\\")[-1]
-                            == cel_file_str.split("\\")[-1]
+                        run_names = [
+                            k.split("\\")[-1]
+                            for k in self.files_to_copy[spec_no].keys()
+                        ]  # Extract run names
+                        if any(
+                            cel_file_str.split("\\")[-1] in run_name
+                            for run_name in run_names
                         ):
-                            print(
+                            logger.info(
                                 "CEL file already exists in the dictionary but is stored in multiple "
                                 f"locations. Skipped. ({cel_file_str})"
                             )
@@ -295,10 +306,10 @@ class CELMover:
                     else:  # Spec no. and run no. not in dict yet
                         self.add_to_files_to_copy_dict(spec_no, run_no, cel_file_str)
                         file_count_to_copy += 1
-                self.cel_files.remove(
-                    cel_file
-                )  # Remove from list to reduce the search burden
-        print(f"Identified {file_count_to_copy} files matching specimen numbers")
+                    self.cel_files.remove(
+                        cel_file
+                    )  # Remove from list to reduce the search burden
+        logger.info(f"Identified {file_count_to_copy} files matching specimen numbers")
 
     def add_to_files_to_copy_dict(
         self, spec_no: str, run_no: str, cel_file_str: str
@@ -309,9 +320,9 @@ class CELMover:
             :param run_no (str):        Run number
             :param cel_file_str (str):  CEL file path
         """
-        self.files_to_copy[spec_no][run_no] = {}
-        self.files_to_copy[spec_no][run_no][cel_file_str] = (
+        self.files_to_copy[spec_no][cel_file_str] = (
             {  # Preliminary list of file names to copy for that spec no
+                "run_no": run_no,
                 "src": cel_file_str,
                 "dest": os.path.join(
                     self.filtered_spec_number_dict[spec_no]["sex_subdir"],
@@ -330,14 +341,13 @@ class CELMover:
             if len(self.files_to_copy[spec_no].keys()) > 1:
                 files_to_exclude = ", ".join(self.files_to_copy[spec_no].keys())
                 final_dict.pop(spec_no)
-                print(
+                logger.info(
                     f"Multiple files identified for spec number {spec_no} ({files_to_exclude}). "
                     "These files have been excluded from files to copy"
                 )
             if len(self.files_to_copy[spec_no].keys()) == 0:
-                print(f"No files were identified for spec number {spec_no}.")
+                logger.info(f"No files were identified for spec number {spec_no}.")
                 final_dict.pop(spec_no)
-        # TODO Keeps files that are identical but found in multiple folder locations, but keeps only a single version of the file
         self.files_to_copy = final_dict
 
     def copy_files(self) -> None:
@@ -351,7 +361,7 @@ class CELMover:
                     if not os.path.isfile(
                         self.files_to_copy[spec_no][file_name]["dest"]
                     ):
-                        print(
+                        logger.info(
                             f"Copying CEL file. Src: {self.files_to_copy[spec_no][file_name]['src']}. "
                             f"Dest: {self.files_to_copy[spec_no][file_name]['dest']}"
                         )
@@ -362,8 +372,13 @@ class CELMover:
 
 
 if __name__ == "__main__":
-
     parsed_args = arg_parse()
+    logfile_path = os.path.join(
+        os.getcwd(),
+        f"{datetime.date.today.strftime('%y%m%d')}_file_mover_postnatal.log",
+    )
+    logger = Logger(logfile_path).logger
+    logger.info("Running file_mover_postnatal.py")
 
     cel_origin_folders = [
         r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\Archive\CEL and ARR files do not delete",
