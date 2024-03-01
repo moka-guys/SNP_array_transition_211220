@@ -375,7 +375,7 @@ if __name__ == "__main__":
     parsed_args = arg_parse()
     logfile_path = os.path.join(
         os.getcwd(),
-        f"{datetime.date.today.strftime('%y%m%d')}_file_mover_postnatal.log",
+        f"{datetime.datetime.now():%y%m%d_%H%M%S}_file_mover_postnatal.log",
     )
     logger = Logger(logfile_path).logger
     logger.info("Running file_mover_postnatal.py")
