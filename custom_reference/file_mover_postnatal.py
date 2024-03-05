@@ -7,6 +7,9 @@ import datetime
 import pandas as pd
 from pathlib import Path
 from logger import Logger
+import tkinter as tk
+from functools import partial
+from tkinter import messagebox
 
 
 def arg_parse():
@@ -371,6 +374,66 @@ class CELMover:
                     )
 
 
+class MessageBox:
+    """
+    Class for creating a message box for user input
+
+    Attributes
+        root (tk.Tk):           Main tkinter window
+        var (tk.StringVar):     Tkinter variable to store selected choice
+        choice (str | None):    Variable to store selected choice
+
+    Methods
+        setup_window()
+
+        submit()
+    """
+
+    def __init__(self):
+        """
+        Constructor for the MessageBox class
+        """
+        self.root = tk.Tk()  # Create the main tkinter window
+        self.var = (
+            tk.StringVar()
+        )  # Create a tkinter variable to store the selected choice
+        self.choice = None  # Variable to store selected choice
+
+    def setup_window(self) -> None:
+        """
+        Configure the tkinter window
+        """
+        self.root.title(
+            "Please select where you are running the script from"
+        )  # Set the title of the window
+        label = tk.Label(self.root, text="Select an option:")  # Create a label widget
+        label.pack()  # Display the label in the window
+        option1 = tk.Radiobutton(
+            self.root, text="VM", variable=self.var, value="VM"
+        )  # Create the first radio button
+        option1.pack()  # Display the first radio button in the window
+        option2 = tk.Radiobutton(
+            self.root, text="S Drive", variable=self.var, value="S Drive"
+        )  # Create the second radio button
+        option2.pack()  # Display the second radio button in the window
+        submit_button = tk.Button(
+            self.root, text="Submit", command=self.submit
+        )  # Create the Submit button
+        submit_button.pack()  # Display the Submit button in the window
+        self.root.mainloop()  # Start the tkinter event loop
+
+    def submit(self) -> None:
+        """
+        Runs upon submission of message box submit button. Displays the selected choice
+        in a message box, saves the choice, and closes the window
+        """
+        self.choice = self.var.get()
+        # You can save the choice as a variable or perform any other action here
+        messagebox.showinfo("Selection", f"You selected: {self.choice}")
+        logger.info(f"Choice saved: {self.choice}")
+        self.root.destroy()
+
+
 if __name__ == "__main__":
     parsed_args = arg_parse()
     logfile_path = os.path.join(
@@ -379,13 +442,22 @@ if __name__ == "__main__":
     )
     logger = Logger(logfile_path).logger
     logger.info("Running file_mover_postnatal.py")
+    message_box = MessageBox()
+    message_box.setup_window()
 
-    cel_origin_folders = [
-        r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\Archive\CEL and ARR files do not delete",
-        r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud",
-        r"\\GRPVCHASDB01\Archive\CEL and ARR files do not delete",
-    ]
+    if message_box.choice == "S Drive":
+        cel_origin_folders = [
+            r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\Archive\CEL and ARR files do not delete",
+            r"S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud",
+        ]
 
+    elif message_box.choice == "VM":
+        cel_origin_folders = [
+            r"\\GRPVCHASDB01\Archive\CEL and ARR files do not delete",
+            r"\\GRPVCHASDB01\Genetics\In",
+        ]
+
+    logger.info(f"CEL origin folders set as: {', '.join(cel_origin_folders)}")
     CELMover(
         parsed_args["output_dir"],
         parsed_args["spec_number_file"],
