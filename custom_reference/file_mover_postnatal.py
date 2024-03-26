@@ -6,10 +6,12 @@ import re
 import datetime
 import pandas as pd
 from pathlib import Path
+import logging
 from logger import Logger
 import tkinter as tk
 from functools import partial
-from tkinter import messagebox
+from tkinter import messagebox, font
+from concurrent.futures import ProcessPoolExecutor
 
 
 def arg_parse():
@@ -67,41 +69,48 @@ class CELMover:
 
     Attributes
         output_dir (str):                           Directory to save CEL files to
-        male_subdir (str):                          Output folder male subdirectory
-        female_subdir (str):                        Output folder female subdirectory
         spec_number_file (str):                     Path to CSV file where one column contains spec numbers
         exclude_spec_numbers_file (str):            Path to CSV file where one column contains spec numbers to exclude
-        spec_number_dict (dict):					Dictionary of spec nos containing their sex and
-                                                    sex subdir for the file to be saved in
-        cel_origin_folders (list):                  List of directories that contain CEL files to be searched for copying
-        filtered_spec_number_dict (dict):  			spec_number_dict with specimens marked for exclusion removed
-        cel_files (list):                           List of all CEL files in supplied folder locations and their subdirectories
-        files_to_copy (dict):                       Dictionary of files to copy into the custom reference
+        cel_origin_folders (list):                  List of directories that contain CEL files to be
+                                                    searched for copying
+        spec_col_name (str):                        Specimen number column header
+        sex_col_name (str):                         Sex column header
+        sex_subdirs (dict):                         Name of subdirectories to place CEL files in
+        files_to_copy_dict (dict):                  Dictionary of files to copy into the custom reference
+        specimen_number_dict (dict):			    Dictionary of spec nos containing their sex and sex subdir for the
+                                                    file to be saved in, with specimen numbers in the
+                                                    exclude_spec_numbers_file filtered out
+        cel_files (list):                           List of all CEL files in supplied folder locations and their
+                                                    subdirectories which contain desired specimen numbers
 
     Methods
-        create_output_subdirs()
-            Checks if output subdirectories exist and if not create them
-        create_spec_number_dict()
-            Reads the spec number file and creates dictionary of spec numbers containing sex, and sex subdir
+        get_specimen_number_dict()
+            Return filtered specimen number dictionary if exclude_spec_numbers_file has been supplied, else
+            return unfiltered specimen number dictionary
+        create_specimen_number_dict()
+            Reads the spec number file and creates dictionary of spec numbers containing sex, and the sex subdir
             to save the CEL file to. These strings are obtained from the file using the header to extract
-            data from the correct columns (spec number = "Specimen ID", sex = "Result Type". If the sex
-            column cannot be determined, sex entry is defined as "None"
-        filter_spec_number_dict()
-            Takes the specimen number dict and removes any entries that are specified in the
-            exclude_spec_numbers_file. If the exclude_spec_numbers_file was not supplied,
-            the unchanged dictionary is returned
-        find_files()
+            data from the correct columns (spec number = "Specimen ID", sex = "Result Type". If the sex column
+            cannot be determined, sex entry is defined as "None"
+        get_csv_lines(file)
+            Extract lines from CSV file and return as list of strings
+        get_column_index(col_name)
+            Return column index for input column name
+        filter_specimen_numbers(specimen_number_dict)
+            Takes the specimen number dict and removes spec numbers specified in the exclude_spec_numbers_file
+        find_cel_files()
             Searches (recursively) through hardcoded folders (self.cel_origin_folders) to identify all CEL files and
             return these as a list
-        identify_files_to_copy()
-            Generate a dictionary of CEL files to be copied into the custom reference by identifying CEL files that
-            match each specimen number in self.filtered_spec_number_dict, identifying which of those should be copied
-            and adding those to the self.files_to_copy dict using self.add_to_files_to_copy_dict()
-        add_to_files_to_copy_dict(spec_no, run_no, cel_file_str)
-            Add files to self.files_to_copy dictionary
-        remove_spec_nos()
-            Where there are multiple files for a spec number, remove this spec number from the dictionary. Keeps files
-            that are identical but found in multiple folder locations, but keeps only a single version of the file
+        add_cel_files_to_dict()
+            Identify CEL files that match a spec number in the self.specimen_number_dict and call
+            self.add_file_to_dict() to add the CEL file to the dictionary. If file is not a duplicate of a file that
+            has already been added to sthe dictionary, add file to dictionary
+        add_file_to_dict(spec_no, cel_file, file_name)
+            Add file to dictionary of files to copy
+        remove_spec_nos_in_multiple_runs()
+            Remove CEL files from the dictionary that are for specimen numbers that appear in multiple runs
+        create_output_subdirs()
+            Checks if output subdirectories exist and if not create them
         copy_files()
             If CEL file does not already exist in the destination directory,
             copy the file from source to destination
@@ -123,255 +132,257 @@ class CELMover:
             :param cel_origin_folders (list):           List of directories that contain CEL files to be
                                                         searched for copying
         """
-
         self.output_dir = output_dir
-        self.male_subdir = os.path.join(self.output_dir, "male")
-        self.female_subdir = os.path.join(self.output_dir, "female")
-        self.undetermined_subdir = os.path.join(self.output_dir, "undetermined")
         self.spec_number_file = spec_number_file
         self.exclude_spec_numbers_file = exclude_spec_numbers_file
-        self.create_output_subdirs()
-        self.spec_number_dict = self.create_spec_number_dict()
         self.cel_origin_folders = cel_origin_folders
+        self.spec_col_name = "Specimen ID"
+        self.sex_col_name = "Result Type"
+        self.sex_subdirs = {
+            "normal female": os.path.join(self.output_dir, "female"),
+            "normal male": os.path.join(self.output_dir, "male"),
+            "undetermined": os.path.join(self.output_dir, "undetermined"),
+        }
+        self.files_to_copy_dict = {}
+        self.specimen_number_dict = self.get_specimen_number_dict()
+        self.cel_files = self.find_cel_files()
+        if self.cel_files:
+            self.add_cel_files_to_dict()
+            self.remove_spec_nos_in_multiple_runs()
+            self.create_output_subdirs()
+            self.copy_files()
+        logger.info("Script complete")
 
+    def get_specimen_number_dict(self) -> dict:
+        """
+        Return filtered specimen number dictionary if exclude_spec_numbers_file has been supplied, else
+        return unfiltered specimen number dictionary
+            :return specimen_number_dict (dict):   Dictionary of specimen numbers
+        """
+        specimen_number_dict = self.create_specimen_number_dict()
         if self.exclude_spec_numbers_file:
             logger.info(
                 "A CSV file containing spec numbers for inclusion has been provided"
             )
-            self.filtered_spec_number_dict = self.filter_spec_number_dict()
+            specimen_number_dict = self.filter_specimen_numbers(specimen_number_dict)
         else:
             logger.warning(
                 "Spec number filtering not specified (no file "
                 "containing spec numbers to exclude was provided)"
             )
-        self.cel_files = self.find_files()
-        self.files_to_copy = {}
-        self.identify_files_to_copy()
-        self.remove_spec_nos()
-        self.copy_files()
-        logger.info("Script complete")
+        return specimen_number_dict
 
-    def create_output_subdirs(self) -> None:
+    def create_specimen_number_dict(self) -> dict:
         """
-        Checks if output subdirectories exist and if not create them
+        Reads the spec number file and creates dictionary of spec numbers containing sex, and the sex subdir
+        to save the CEL file to. These strings are obtained from the file using the header to extract
+        data from the correct columns (spec number = "Specimen ID", sex = "Result Type". If the sex column
+        cannot be determined, sex entry is defined as "None"
+            :return specimen_number_dict (dict):	Dictionary of spec nos containing their sex and
+                                                    sex subdir for the file to be saved in
         """
-        for directory in [
-            self.male_subdir,
-            self.female_subdir,
-            self.undetermined_subdir,
-        ]:
-            if not os.path.exists(directory):
-                os.mkdir(directory)
-
-    def create_spec_number_dict(self) -> list:
-        """
-        Reads the spec number file and creates dictionary of spec numbers containing sex, and sex subdir
-                to save the CEL file to. These strings are obtained from the file using the header to extract
-        data from the correct columns (spec number = "Specimen ID", sex = "Result Type". If the sex
-                column cannot be determined, sex entry is defined as "None"
-            :return spec_number_dict (dict):	Dictionary of spec nos containing their sex and
-                                                                                                sex subdir for the file to be saved in
-        """
-        spec_number_dict = {}
-        sex_col = False
-        with open(self.spec_number_file, "r") as input_file:
-            file_list = input_file.readlines()
-            # get the column number containing the specimen number
-        for count, header in enumerate(file_list[0].split(",")):
-            if header.rstrip() == "Specimen ID":
-                spec_column = count
-            if header.rstrip() == "Result Type":
-                sex_col = count
-
-        for line in file_list[
+        specimen_number_dict = {}
+        file_lines = self.get_csv_lines(self.spec_number_file)
+        for line in file_lines[
             1:
         ]:  # Extract the spec number from rest of the lines in file
-            spec_no = line.split(",")[spec_column]
-            if sex_col:
-                spec_number_dict[spec_no] = {"sex": line.split(",")[sex_col]}
-            else:
-                spec_number_dict[spec_no] = {
-                    "sex": "None",
-                }
-            if "normal female" in spec_number_dict[spec_no]["sex"]:
-                sex_subdir = self.female_subdir
-            elif "normal male" in spec_number_dict[spec_no]["sex"]:
-                sex_subdir = self.male_subdir
-            else:
-                sex_subdir = "undetermined"
-
-            spec_number_dict[spec_no]["sex_subdir"] = sex_subdir
+            spec_no = line.split(",")[self.get_column_index(self.spec_col_name)]
+            sex = line.split(",")[self.get_column_index(self.sex_col_name)]
+            for subdir in self.sex_subdirs.keys():
+                if subdir in sex:
+                    specimen_number_dict[spec_no] = {
+                        "sex": sex,
+                        "sex_subdir": self.sex_subdirs[subdir],
+                    }
         logger.info(
-            "%s spec numbers in spec number dictionary" % len(spec_number_dict.keys())
+            f"{len(specimen_number_dict.keys())} spec numbers in spec number dictionary"
         )  # Summarise number of specimens
-        return spec_number_dict
+        return specimen_number_dict
 
-    def filter_spec_number_dict(self) -> list:
+    def get_csv_lines(self, file: str) -> list:
         """
-        Takes the specimen number dict and removes any entries that are specified in the
-        exclude_spec_numbers_file. If the exclude_spec_numbers_file was not supplied,
-        the unchanged dictionary is returned
-            :return filtered_spec_number_dict (dict):   spec_number_dict with specimens marked for exclusion removed
+        Extract lines from CSV file and return as list of strings
+            :param file (str):          Path to file
+            :return file_list (list):   List of strings, one per line of the file
         """
-        to_exclude_list, excluded = [], []
-        filtered_spec_number_dict = self.spec_number_dict.copy()
+        with open(file, "r") as input_file:
+            file_list = input_file.readlines()
+        return file_list
 
-        with open(self.exclude_spec_numbers_file, "r") as input_file:
-            file_contents = input_file.readlines()
-        # Get column number containing the specimen number
-        for count, header in enumerate(file_contents[0].split(",")):
-            if header == "Specimen ID":
-                spec_column = count
+    def get_column_index(self, col_name: str):
+        """
+        Return column index for input column name
+            :param col_name (str):      Column name string
+            :return col_index (int):    Index of column
+        """
+        file_lines = self.get_csv_lines(self.spec_number_file)
+        for count, header in enumerate(file_lines[0].split(",")):
+            if header.rstrip() == col_name:
+                col_index = count
+        return col_index
 
-        for line in file_contents[
-            1:
-        ]:  # Extract the specimen number from the rest of the lines in file
-            to_exclude_list.append((line.split(",")[spec_column]))
+    def filter_specimen_numbers(self, specimen_number_dict: dict):
+        """
+        Takes the specimen number dict and removes spec numbers specified in the exclude_spec_numbers_file
+            :param specimen_number_dict (dict):	            Dictionary of spec nos containing their sex and
+                                                            sex subdir for the file to be saved inmber_dict
+            :return filtered_specimen_number_dict (dict):   specimen_number_dict with specimens marked for
+                                                            exclusion removed
+        """
+        to_exclude_list = []
+        excluded = 0
+        filtered_specimen_number_dict = specimen_number_dict.copy()
+        file_lines = self.get_csv_lines(self.exclude_spec_numbers_file)
+        spec_col_index = self.get_column_index(self.spec_col_name)
 
-        list(set(to_exclude_list))
+        # Extract the specimen number from the rest of the lines in file
+        for line in file_lines[1:]:
+            to_exclude_list.append((line.split(",")[spec_col_index]))
 
-        for spec_no in self.spec_number_dict.keys():
+        to_exclude_list = list(set(to_exclude_list))
+        logger.info(f"{len(to_exclude_list)} specimen numbers in to exclude file")
+
+        for spec_no in specimen_number_dict.keys():
             if spec_no in to_exclude_list:
-                del filtered_spec_number_dict[spec_no]
-                excluded.append(spec_no)
+                del filtered_specimen_number_dict[spec_no]
+                excluded += 1
 
-        logger.info(f"{len(excluded)} specimen numbers excluded")
-        assert len(excluded) + len(filtered_spec_number_dict.keys()) == len(
-            self.spec_number_dict
+        logger.info(f"{excluded} specimen numbers excluded")
+        assert excluded + len(filtered_specimen_number_dict.keys()) == len(
+            specimen_number_dict
         )
         # Summarise number of specimens
         logger.info(
-            "%s spec numbers in spec number dictionary post filtering"
-            % len(filtered_spec_number_dict)
+            f"{len(filtered_specimen_number_dict)} spec numbers in spec number dictionary post filtering"
         )
-        return filtered_spec_number_dict
+        return filtered_specimen_number_dict
 
-    def find_files(self) -> dict:
+    def find_cel_files(self) -> list:
         """
         Searches (recursively) through hardcoded folders (self.cel_origin_folders) to identify all CEL files and
         return these as a list
             :return cel_files (list):   List of all CEL files in supplied folder locations and their subdirectories
         """
-        self.filtered_spec_number_dict
-
         cel_files = []
+        validated_folders = []
         for folder in self.cel_origin_folders:
-            if os.path.isdir(folder):
+            if os.path.exists(folder):
                 logger.info(f"The input directory exists: {folder}")
+                folder_cel_files = list(Path(folder).rglob("*.CEL"))
+                logger.info(
+                    f"Identified {len(folder_cel_files)} CEL files in input folder: {folder}"
+                )
                 cel_files.extend(
-                    list(Path(folder).rglob("*.CEL"))
+                    folder_cel_files
                 )  # Extract paths of all CEL files in each folder
+                validated_folders.append(folder)
             else:
                 logger.warning(
                     f"The input directory does not exist, skipping: {folder}"
                 )
-        logger.info("%s CEL files identified in input folders" % len(cel_files))
+        self.cel_origin_folders = validated_folders
+        logger.info(f"{len(cel_files)} total CEL files identified in input folders")
         return cel_files
 
-    def identify_files_to_copy(self) -> None:
+    def add_cel_files_to_dict(self) -> None:  # Docstring done
         """
-        Generate a dictionary of CEL files to be copied into the custom reference by identifying CEL files that
-        match each specimen number in self.filtered_spec_number_dict, identifying which of those should be copied
-        and adding those to the self.files_to_copy dict using self.add_to_files_to_copy_dict()
+        Identify CEL files that match a spec number in the self.specimen_number_dict and call self.add_file_to_dict()
+        to add the CEL file to the dictionary. If file is not a duplicate of a file that has already been added to
+        the dictionary, add file to dictionary
         """
-        file_count_to_copy = 0
-        for spec_no in self.filtered_spec_number_dict.keys():
-            self.files_to_copy[spec_no] = {}
-            for cel_file in self.cel_files:
-                cel_file_str = str(cel_file)
-                if str(spec_no) in cel_file_str:
-                    run_no = (cel_file_str.split("\\")[-1]).split("_")[1]
-                    # If there is already an entry for this run number
-                    if run_no in self.files_to_copy[spec_no].keys():
-                        logger.info(
-                            "Spec number with the same run number as an another CEL file has been identified. "
-                            f"Spec no: {spec_no}. Run no: {run_no}"
-                        )
-                        # If the existing spec_no dictionary entry is a CEL file with an identical run name,
-                        # skip over the CEL file as it is likely the same file stored in a different location
-                        run_names = [
-                            k.split("\\")[-1]
-                            for k in self.files_to_copy[spec_no].keys()
-                        ]  # Extract run names
-                        if any(
-                            cel_file_str.split("\\")[-1] in run_name
-                            for run_name in run_names
-                        ):
-                            logger.info(
-                                "CEL file already exists in the dictionary but is stored in multiple "
-                                f"locations. Skipped. ({cel_file_str})"
-                            )
-                        else:  # Spec no. and run no. not in dict yet
-                            self.add_to_files_to_copy_dict(
-                                spec_no, run_no, cel_file_str
-                            )
-                            file_count_to_copy += 1
-                    else:  # Spec no. and run no. not in dict yet
-                        self.add_to_files_to_copy_dict(spec_no, run_no, cel_file_str)
-                        file_count_to_copy += 1
-                    self.cel_files.remove(
-                        cel_file
-                    )  # Remove from list to reduce the search burden
-        logger.info(f"Identified {file_count_to_copy} files matching specimen numbers")
-
-    def add_to_files_to_copy_dict(
-        self, spec_no: str, run_no: str, cel_file_str: str
-    ) -> None:
-        """
-        Add files to self.files_to_copy dictionary
-            :param spec_no (str):       Specimen number
-            :param run_no (str):        Run number
-            :param cel_file_str (str):  CEL file path
-        """
-        self.files_to_copy[spec_no][cel_file_str] = (
-            {  # Preliminary list of file names to copy for that spec no
-                "run_no": run_no,
-                "src": cel_file_str,
-                "dest": os.path.join(
-                    self.filtered_spec_number_dict[spec_no]["sex_subdir"],
-                    cel_file_str.split("\\")[-1],
-                ),
-            }
+        logger.info(
+            f"Identifying CEL files that contain specimen numbers in the filtered specimen number list"
+        )
+        match_no_spec_nos = 0
+        duplicate_file_count = 0
+        spec_nos = list(self.specimen_number_dict.copy().keys())
+        for cel_file in self.cel_files:
+            cel_file_str = cel_file.__str__()
+            if any(spec_no in cel_file_str for spec_no in spec_nos):
+                for spec_no in spec_nos:
+                    file_name = cel_file_str.split("\\")[-1]
+                    if spec_no in cel_file_str:
+                        if file_name in self.files_to_copy_dict:
+                            duplicate_file_count += 1
+                        else:  # File is not a duplicate, so add to the dict
+                            self.add_file_to_dict(spec_no, cel_file, file_name)
+            else:
+                match_no_spec_nos += 1
+        logger.info(
+            f"{duplicate_file_count} files were discounted as they were determined to be likely duplicates"
+        )
+        logger.info(
+            f"{match_no_spec_nos} files were discounted as they do not match input spec numbers"
+        )
+        logger.info(  # TODO update this with the correct way of counting this!
+            f"{len(self.files_to_copy_dict)} CEL files identified for copying that match specimen numbers in the filtered specimen number list"
         )
 
-    def remove_spec_nos(self) -> None:
+    def add_file_to_dict(self, spec_no: str, cel_file: Path, file_name: str) -> None:
         """
-        Where there are multiple files for a spec number, remove this spec number from the dictionary. Keeps files
-        that are identical but found in multiple folder locations, but keeps only a single version of the file
+        Add file to dictionary of files to copy
+            :param spec_no (str):			Specimen number for the CEL file
+            :param cel_file (Path):         Specimen number for the CEL file
+            :param file_name (str):         Name of CEL file
         """
-        final_dict = self.files_to_copy.copy()
-        for spec_no in self.files_to_copy.keys():
-            if len(self.files_to_copy[spec_no].keys()) > 1:
-                files_to_exclude = ", ".join(self.files_to_copy[spec_no].keys())
-                final_dict.pop(spec_no)
-                logger.info(
-                    f"Multiple files identified for spec number {spec_no} ({files_to_exclude}). "
-                    "These files have been excluded from files to copy"
-                )
-            if len(self.files_to_copy[spec_no].keys()) == 0:
-                logger.info(f"No files were identified for spec number {spec_no}.")
-                final_dict.pop(spec_no)
-        self.files_to_copy = final_dict
+        duplicate_file = False
+        cel_file_str = cel_file.__str__()
+        self.files_to_copy_dict[file_name] = {
+            "src": cel_file,
+            "dest": os.path.join(
+                self.specimen_number_dict[spec_no]["sex_subdir"],
+                cel_file.__str__().split("\\")[-1],
+            ),
+            "spec_no": (cel_file_str.split("\\")[-1]).split("_")[0],
+            "run_no": (cel_file_str.split("\\")[-1]).split("_")[1],
+        }
+
+    def remove_spec_nos_in_multiple_runs(self) -> dict:
+        """
+        Remove CEL files from the dictionary that are for specimen numbers that appear in multiple runs
+        """
+        spec_nos = list(self.specimen_number_dict.copy().keys())
+        cel_files_removed = 0
+        for spec_no in spec_nos:
+            duplicate_spec_no_files = [
+                file_name
+                for file_name in self.files_to_copy_dict.keys()
+                if self.files_to_copy_dict[file_name]["spec_no"] == spec_no
+            ]
+            if len(duplicate_spec_no_files) > 1:
+                # Remove CEL files from dictionary for this spec number as they are from multiple runs
+                for file_name in duplicate_spec_no_files:
+                    self.files_to_copy_dict.pop(file_name)
+                    cel_files_removed += 1
+        logger.info(
+            f"{cel_files_removed} CEL files removed as the specimen number was present in CEL files from multiple runs"
+        )
+        logger.info(f"{len(self.files_to_copy_dict)} files remain for copying")
+
+    def create_output_subdirs(self) -> None:
+        """
+        Checks if output subdirectories exist and if not create them
+        """
+        for dirtype, dirpath in self.sex_subdirs.items():
+            if not os.path.exists(dirpath):
+                os.mkdir(dirpath)
+                logger.info(f"Created directory: {dirpath}")
 
     def copy_files(self) -> None:
         """
         If CEL file does not already exist in the destination directory,
         copy the file from source to destination
         """
-        for spec_no in self.files_to_copy.keys():
-            if len(self.files_to_copy[spec_no].keys()) == 1:
-                for file_name in self.files_to_copy[spec_no].keys():
-                    if not os.path.isfile(
-                        self.files_to_copy[spec_no][file_name]["dest"]
-                    ):
-                        logger.info(
-                            f"Copying CEL file. Src: {self.files_to_copy[spec_no][file_name]['src']}. "
-                            f"Dest: {self.files_to_copy[spec_no][file_name]['dest']}"
-                        )
-                    shutil.copyfile(  # Copy the file into the provided subfolder
-                        self.files_to_copy[spec_no][file_name]["src"],
-                        self.files_to_copy[spec_no][file_name]["dest"],
-                    )
+        logger.info(
+            f"{len(self.files_to_copy_dict)} total CEL files to copy. Starting."
+        )
+        for file_name in self.files_to_copy_dict:
+            if not os.path.isfile(self.files_to_copy_dict[file_name]["dest"]):
+                shutil.copyfile(  # Copy the file into the provided subfolder
+                    self.files_to_copy_dict[file_name]["src"],
+                    self.files_to_copy_dict[file_name]["dest"],
+                )
+        logger.info(f"CEL file copying complete")
 
 
 class MessageBox:
@@ -385,14 +396,19 @@ class MessageBox:
 
     Methods
         setup_window()
-
+            Configure the tkinter window
+        on_closing()
+            Write to log and exit script upon closing the message box
         submit()
+            Runs upon submission of message box submit button. Displays the selected choice
+            in a message box, saves the choice, and closes the window
     """
 
-    def __init__(self):
+    def __init__(self, logger):
         """
         Constructor for the MessageBox class
         """
+        self.logger = logger
         self.root = tk.Tk()  # Create the main tkinter window
         self.var = (
             tk.StringVar()
@@ -403,24 +419,35 @@ class MessageBox:
         """
         Configure the tkinter window
         """
+        helv = font.Font(family="Helvetica", size=20, weight=font.BOLD)
+        self.root.geometry("520x300")
         self.root.title(
             "Please select where you are running the script from"
         )  # Set the title of the window
-        label = tk.Label(self.root, text="Select an option:")  # Create a label widget
+        label = tk.Label(self.root, text="Location", font=helv)  # Create a label widget
         label.pack()  # Display the label in the window
         option1 = tk.Radiobutton(
-            self.root, text="VM", variable=self.var, value="VM"
+            self.root, text="VM", variable=self.var, value="VM", font=helv
         )  # Create the first radio button
         option1.pack()  # Display the first radio button in the window
         option2 = tk.Radiobutton(
-            self.root, text="S Drive", variable=self.var, value="S Drive"
+            self.root, text="S Drive", variable=self.var, value="S Drive", font=helv
         )  # Create the second radio button
         option2.pack()  # Display the second radio button in the window
         submit_button = tk.Button(
-            self.root, text="Submit", command=self.submit
+            self.root, text="Submit", command=self.submit, font=helv
         )  # Create the Submit button
         submit_button.pack()  # Display the Submit button in the window
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.mainloop()  # Start the tkinter event loop
+
+    def on_closing(self) -> None:
+        """
+        Write to log and exit script upon closing the message box
+        """
+        if not self.choice:
+            self.logger.info("No input location provided, exiting script")
+            sys.exit(1)
 
     def submit(self) -> None:
         """
@@ -430,8 +457,12 @@ class MessageBox:
         self.choice = self.var.get()
         # You can save the choice as a variable or perform any other action here
         messagebox.showinfo("Selection", f"You selected: {self.choice}")
-        logger.info(f"Choice saved: {self.choice}")
         self.root.destroy()
+        if self.choice:
+            logger.info(f"Choice saved: {self.choice}")
+        else:
+            logger.info(f"No input was selected. Exiting")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
@@ -442,7 +473,7 @@ if __name__ == "__main__":
     )
     logger = Logger(logfile_path).logger
     logger.info("Running file_mover_postnatal.py")
-    message_box = MessageBox()
+    message_box = MessageBox(logger)
     message_box.setup_window()
 
     if message_box.choice == "S Drive":
