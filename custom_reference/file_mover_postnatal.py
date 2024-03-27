@@ -6,6 +6,7 @@ import datetime
 from pathlib import Path
 from logger import Logger
 import tkinter as tk
+from tkinter import font, messagebox
 
 
 def arg_parse():
@@ -416,7 +417,7 @@ class MessageBox:
         """
         Configure the tkinter window
         """
-        helv = tk.font.Font(family="Helvetica", size=20, weight=tk.font.BOLD)
+        helv = font.Font(family="Helvetica", size=20, weight=font.BOLD)
         self.root.geometry("520x300")
         self.root.title(
             "Please select where you are running the script from"
@@ -453,7 +454,7 @@ class MessageBox:
         """
         self.choice = self.var.get()
         # You can save the choice as a variable or perform any other action here
-        tk.messagebox.showinfo("Selection", f"Choice saved: {self.choice}")
+        messagebox.showinfo("Selection", f"Choice saved: {self.choice}")
         self.root.destroy()
         if self.choice:
             logger.info(f"Choice saved: {self.choice}")
