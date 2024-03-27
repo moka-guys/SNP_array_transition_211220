@@ -1,2 +1,3 @@
 venv/
 overlap_map_bed_generator/__pycache__/
+*pycache*
