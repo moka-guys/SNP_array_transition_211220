@@ -162,7 +162,7 @@ class CELMover:
         specimen_number_dict = self.create_specimen_number_dict()
         if self.exclude_spec_numbers_file:
             logger.info(
-                "A CSV file containing spec numbers for inclusion has been provided"
+                f"A CSV file containing spec numbers for exclusion has been provided: {self.exclude_spec_numbers_file}"
             )
             specimen_number_dict = self.filter_specimen_numbers(specimen_number_dict)
         else:
@@ -247,13 +247,16 @@ class CELMover:
                 del filtered_specimen_number_dict[spec_no]
                 excluded += 1
 
-        logger.info(f"{excluded} specimen numbers excluded")
+        logger.info(
+            f"{excluded} specimen numbers from the input specimen numbers file excluded"
+        )
         assert excluded + len(filtered_specimen_number_dict.keys()) == len(
             specimen_number_dict
         )
         # Summarise number of specimens
         logger.info(
-            f"{len(filtered_specimen_number_dict)} spec numbers in spec number dictionary post filtering"
+            f"{len(filtered_specimen_number_dict)} spec numbers from the input specimen "
+            "numbers file remain post filtering"
         )
         return filtered_specimen_number_dict
 
@@ -312,10 +315,12 @@ class CELMover:
             f"{duplicate_file_count} files were discounted as they were determined to be likely duplicates"
         )
         logger.info(
-            f"{match_no_spec_nos} files were discounted as they do not match input spec numbers"
+            f"{match_no_spec_nos} files were discounted as they do not match input specimen numbers in the "
+            "filtered specimen number list"
         )
         logger.info(  # TODO update this with the correct way of counting this!
-            f"{len(self.files_to_copy_dict)} CEL files identified for copying that match specimen numbers in the filtered specimen number list"
+            f"{len(self.files_to_copy_dict)} CEL files identified for copying that match specimen numbers in "
+            "the filtered specimen number list"
         )
 
     def add_file_to_dict(self, spec_no: str, cel_file: Path, file_name: str) -> None:
