@@ -2,16 +2,10 @@ import argparse
 import os
 import sys
 import shutil
-import re
 import datetime
-import pandas as pd
 from pathlib import Path
-import logging
 from logger import Logger
 import tkinter as tk
-from functools import partial
-from tkinter import messagebox, font
-from concurrent.futures import ProcessPoolExecutor
 
 
 def arg_parse():
@@ -330,7 +324,6 @@ class CELMover:
             :param cel_file (Path):         Specimen number for the CEL file
             :param file_name (str):         Name of CEL file
         """
-        duplicate_file = False
         cel_file_str = cel_file.__str__()
         self.files_to_copy_dict[file_name] = {
             "src": cel_file,
@@ -342,7 +335,7 @@ class CELMover:
             "run_no": (cel_file_str.split("\\")[-1]).split("_")[1],
         }
 
-    def remove_spec_nos_in_multiple_runs(self) -> dict:
+    def remove_spec_nos_in_multiple_runs(self) -> None:
         """
         Remove CEL files from the dictionary that are for specimen numbers that appear in multiple runs
         """
@@ -409,11 +402,10 @@ class MessageBox:
             in a message box, saves the choice, and closes the window
     """
 
-    def __init__(self, logger):
+    def __init__(self):
         """
         Constructor for the MessageBox class
         """
-        self.logger = logger
         self.root = tk.Tk()  # Create the main tkinter window
         self.var = (
             tk.StringVar()
@@ -424,7 +416,7 @@ class MessageBox:
         """
         Configure the tkinter window
         """
-        helv = font.Font(family="Helvetica", size=20, weight=font.BOLD)
+        helv = tk.font.Font(family="Helvetica", size=20, weight=tk.font.BOLD)
         self.root.geometry("520x300")
         self.root.title(
             "Please select where you are running the script from"
@@ -451,7 +443,7 @@ class MessageBox:
         Write to log and exit script upon closing the message box
         """
         if not self.choice:
-            self.logger.info("No input location provided, exiting script")
+            logger.info("No input location provided, exiting script")
             sys.exit(1)
 
     def submit(self) -> None:
@@ -461,7 +453,7 @@ class MessageBox:
         """
         self.choice = self.var.get()
         # You can save the choice as a variable or perform any other action here
-        messagebox.showinfo("Selection", f"You selected: {self.choice}")
+        tk.messagebox.showinfo("Selection", f"Choice saved: {self.choice}")
         self.root.destroy()
         if self.choice:
             logger.info(f"Choice saved: {self.choice}")
@@ -478,7 +470,7 @@ if __name__ == "__main__":
     )
     logger = Logger(logfile_path).logger
     logger.info("Running file_mover_postnatal.py")
-    message_box = MessageBox(logger)
+    message_box = MessageBox()
     message_box.setup_window()
 
     if message_box.choice == "S Drive":
