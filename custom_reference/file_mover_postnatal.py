@@ -240,7 +240,7 @@ class CELMover:
             to_exclude_list.append((line.split(",")[spec_col_index]))
 
         to_exclude_list = list(set(to_exclude_list))
-        logger.info(f"{len(to_exclude_list)} specimen numbers in to exclude file")
+        logger.info(f"{len(to_exclude_list)} specimen numbers in exclusion file")
 
         for spec_no in specimen_number_dict.keys():
             if spec_no in to_exclude_list:

@@ -46,16 +46,18 @@ options:
                         Path to CSV file where one column contains spec numbers to exclude
 ```
 
+**N.B. the output location in the below commands should be changed each time the script is run**
+
 #### S Drive
 
 ```
-S:\Genetics_Data2\Array\Software\Python-3.6.5\python.exe "S:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\test\file_mover_postnatal.py" -o "S:\Genetics_Data2\Array\Audits and Projects\221102 custom reference\test\test_output" -s "S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud\Custom reference project\GW list_all unfiltered_1 Jan to 30 Sep 2023_NEW_normal postnatal female and male only_SPECIMEN LIST.csv" -e "S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud\Custom reference project\DMD list for custom reference exported 07022024.csv"
+S:\Genetics_Data2\Array\Software\Python-3.6.5\python.exe "S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud\Software\SNP_array_transition_211220\custom_reference\file_mover_postnatal.py" -o "S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud\Custom reference project\custom_reference_2024\" -s "S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud\Custom reference project\GW list_all unfiltered_1 Jan to 30 Sep 2023_NEW_normal postnatal female and male only_SPECIMEN LIST.csv" -e "S:\Genetics_Data2\Array\Geneworks - Viapath Cloud sync folder\UploadToCloud\Custom reference project\DMD list for custom reference exported 07022024.csv"
 ```
 
-## VM
+#### VM
 
 ```
-\\GRPVCHASDB01\Genetics\In\Software\Python-3.6.5\python.exe "\\GRPVCHASDB01\Genetics\In\Custom reference project\file_mover_postnatal.py" -o "\\GRPVCHASDB01\Genetics\In\Custom reference project" -s "\\GRPVCHASDB01\Genetics\In\Custom reference project\GW list_all unfiltered_1 Jan to 30 Sep 2023_NEW_normal postnatal female and male only_SPECIMEN LIST.csv" -e "\\GRPVCHASDB01\Genetics\In\Custom reference project\DMD list for custom reference exported 07022024.csv"
+\\GRPVCHASDB01\Genetics\In\Software\Python-3.6.5\python.exe "\\GRPVCHASDB01\Genetics\In\Software\SNP_array_transition_211220\custom_reference\file_mover_postnatal.py" -o "\\GRPVCHASDB01\Genetics\In\Custom reference project\custom_reference_2024\" -s "\\GRPVCHASDB01\Genetics\In\Custom reference project\custom_reference_2024\GW list_all unfiltered_1 Jan to 30 Sep 2023_NEW_normal postnatal female and male only_SPECIMEN LIST.csv" -e "\\GRPVCHASDB01\Genetics\In\Custom reference project\custom_reference_2024\DMD list for custom reference exported 07022024.csv"
 ```
 
 ## file\_mover\_prenatal.py
